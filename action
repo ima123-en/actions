@@ -11,7 +11,7 @@ local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local Mouse = LocalPlayer:GetMouse()
-local SAVE_KEY = "UnifiedSystem_V3_" .. LocalPlayer.UserId
+local SAVE_KEY = "UnifiedSystem_V5_" .. LocalPlayer.UserId
 
 if PlayerGui:FindFirstChild("UnifiedPanel") then PlayerGui.UnifiedPanel:Destroy() end
 if Workspace:FindFirstChild("ProximityAP") then Workspace.ProximityAP:Destroy() end
@@ -20,12 +20,13 @@ if getgenv().UnifiedSystem then pcall(function() getgenv().UnifiedSystem.Disable
 getgenv().UnifiedSystem = {
     RagdollKey = "R", RejoinKey = "Minus", KickKey = "Equals", ResetKey = "P", KickAfterSteal = false,
     ProximityAP = false, ClickToAP = false, ProximityRadius = 15, Selected = nil,
-    Running = true, IgnoreNextSteal = false, Connections = {}, Strikes = {}, StealStatus = {}
+    Running = true, IgnoreNextSteal = false, Connections = {}, Strikes = {}, LastTime = {}, StealStatus = {}
 }
 
 local US = getgenv().UnifiedSystem
 local CmdList = {"ragdoll", "rocket", "balloon", "jail", "tiny", "morph", "jumpscare", "inverse"}
-local Cycle = { [1] = {"balloon"}, [2] = {"ragdoll"}, [3] = {"rocket"} }
+local Cycle = {"balloon", "ragdoll", "rocket", "tiny", "morph", "inverse", "jumpscare", "jail"}
+local StealWords = {"is stealing", "stole from", "robbing", "stole your", "stole"}
 
 local function SaveSettings()
     pcall(function()
@@ -71,9 +72,17 @@ local function fireCycle(target)
     if not target then return end
     local n = target.Name
     US.Strikes[n] = (US.Strikes[n] or 0) + 1
-    local cmds = (US.Strikes[n] <= 3) and Cycle[US.Strikes[n]] or CmdList
+    
     task.spawn(function()
-        for _,c in ipairs(cmds) do exec(n, c) task.wait(0.05) end
+        local strike = US.Strikes[n]
+        if strike <= #Cycle then
+            exec(n, Cycle[strike])
+        else
+            for _, c in ipairs(CmdList) do
+                exec(n, c)
+                task.wait(0.2)
+            end
+        end
     end)
 end
 
@@ -142,7 +151,7 @@ local function CheckText(txt)
         if l:find(n) or l:find(d) then
             local item = extractItem(txt, "is stealing ") or extractItem(txt, "stole your ") or extractItem(txt, "stole ")
             if item then
-                US.StealStatus[p.Name] = {expire = tick() + 4, item = item}
+                US.StealStatus[p.Name] = {expire = tick() + 5, item = item}
             end
         end
     end
@@ -390,7 +399,7 @@ local function UpdatePlayers()
         end
         
         local pf = PlayerFrames[p.Name]
-        pf.Status.Text = isStealing and ("Steals " .. stealData.item) or ""
+        pf.Status.Text = isStealing and ("Steals: " .. stealData.item) or ""
         pf.Status.TextColor3 = isStealing and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(150, 150, 150)
         
         if isStealing then
@@ -544,7 +553,7 @@ table.insert(US.Connections, RunService.Heartbeat:Connect(function()
             local t = rb:FindFirstChild("Timer") and rb.Timer.Text or ""
             local vis = rb:FindFirstChild("Timer") and rb.Timer.Visible
             if cd and t ~= "" and vis then
-                d.btn.Text = t
+                d.btn.Text = t .. "s"
                 d.btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
                 d.btn.TextColor3 = Color3.fromRGB(0, 0, 0)
                 d.str.Color = Color3.fromRGB(255, 255, 255)
