@@ -10,29 +10,30 @@ local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-local Mouse = LocalPlayer:GetMouse()
+local Mouse = LocalPlayer:GetMouse() -- Mouse is not used in this simplified version, but kept for consistency
 local SAVE_KEY = "UnifiedSystem_V5_" .. LocalPlayer.UserId
 
+-- Clean up any existing instances
 if PlayerGui:FindFirstChild("UnifiedPanel") then PlayerGui.UnifiedPanel:Destroy() end
-if Workspace:FindFirstChild("ProximityAP") then Workspace.ProximityAP:Destroy() end
+-- Removed ProximityAP cleanup, as ProximityAP functionality is removed
 if getgenv().UnifiedSystem then pcall(function() getgenv().UnifiedSystem.Disable() end) end
 
+-- Global UnifiedSystem table, cleaned up for only Action-related features
 getgenv().UnifiedSystem = {
     RagdollKey = "R", RejoinKey = "Minus", KickKey = "Equals", ResetKey = "P", KickAfterSteal = false,
-    ProximityAP = false, ClickToAP = false, ProximityRadius = 15, Selected = nil,
-    Running = true, IgnoreNextSteal = false, Connections = {}, Strikes = {}, LastTime = {}, StealStatus = {}
+    Running = true, IgnoreNextSteal = false, Connections = {}, StealStatus = {} -- Removed CmdList, Cycle, Strikes, LastTime, Selected, ProximityAP, ClickToAP, ProximityRadius
 }
 
 local US = getgenv().UnifiedSystem
-local CmdList = {"ragdoll", "rocket", "balloon", "jail", "tiny", "morph", "jumpscare", "inverse"}
-local Cycle = {"balloon", "ragdoll", "rocket", "tiny", "morph", "inverse", "jumpscare", "jail"}
+-- StealWords kept as KickAfterSteal relies on it
 local StealWords = {"is stealing", "stole from", "robbing", "stole your", "stole"}
 
 local function SaveSettings()
     pcall(function()
         writefile(SAVE_KEY..".json", HttpService:JSONEncode({
             RagdollKey = US.RagdollKey, RejoinKey = US.RejoinKey, KickKey = US.KickKey, ResetKey = US.ResetKey,
-            KickAfterSteal = US.KickAfterSteal, ProximityAP = US.ProximityAP, ClickToAP = US.ClickToAP, ProximityRadius = US.ProximityRadius
+            KickAfterSteal = US.KickAfterSteal
+            -- Removed ProximityAP, ClickToAP, ProximityRadius from save
         }))
     end)
 end
@@ -45,48 +46,25 @@ pcall(function()
         if d.KickKey ~= nil then US.KickKey = d.KickKey end
         if d.ResetKey ~= nil then US.ResetKey = d.ResetKey end
         if d.KickAfterSteal ~= nil then US.KickAfterSteal = d.KickAfterSteal end
-        if d.ProximityAP ~= nil then US.ProximityAP = d.ProximityAP end
-        if d.ClickToAP ~= nil then US.ClickToAP = d.ClickToAP end
-        if d.ProximityRadius ~= nil then US.ProximityRadius = d.ProximityRadius end
+        -- Removed ProximityAP, ClickToAP, ProximityRadius from load
     end
 end)
 
-local function getTB()
-    local ap = PlayerGui:FindFirstChild("AdminPanel")
-    local p = ap and ap:FindFirstChild("AdminPanel")
-    local cb = p and p:FindFirstChild("CommandBox")
-    return cb and cb:FindFirstChild("TextBox")
-end
+-- Removed getTB function (used for Admin Panel TextBox)
+-- Removed exec function (used for Admin Panel commands)
+-- Removed fireCycle function (used for Admin Panel cycling commands)
 
-local function exec(target, cmd)
-    if not target or not cmd then return end
-    local tb = getTB()
-    if not tb then return end
-    tb.Text = ";"..cmd.." "..target
-    RunService.RenderStepped:Wait()
-    if getconnections then for _,c in ipairs(getconnections(tb.FocusLost)) do c:Fire(true) end
-    elseif firesignal then firesignal(tb.FocusLost, true) end
+-- DoRagdoll will now be a no-op as the 'exec' command mechanism is removed.
+-- If you have a different method to ragdoll the local player without admin commands,
+-- you would implement it here.
+local function DoRagdoll()
+    warn("Ragdoll Self button pressed, but admin command functionality has been removed.")
+    -- Example of a client-side ragdoll (may not work in all games):
+    -- local char = LocalPlayer.Character
+    -- if char and char:FindFirstChildOfClass("Humanoid") then
+    --     char.Humanoid.PlatformStand = true
+    -- end
 end
-
-local function fireCycle(target)
-    if not target then return end
-    local n = target.Name
-    US.Strikes[n] = (US.Strikes[n] or 0) + 1
-    
-    task.spawn(function()
-        local strike = US.Strikes[n]
-        if strike <= #Cycle then
-            exec(n, Cycle[strike])
-        else
-            for _, c in ipairs(CmdList) do
-                exec(n, c)
-                task.wait(0.2)
-            end
-        end
-    end)
-end
-
-local function DoRagdoll() exec(LocalPlayer.Name, "ragdoll") end
 local function DoRejoin() pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) end) end
 local function DoKick() LocalPlayer:Kick("Manual Kick") end
 local function DoReset()
@@ -100,12 +78,9 @@ local function DoReset()
     pcall(function()
         local hum = char:FindFirstChildWhichIsA("Humanoid")
         if hum then hum:ChangeState(Enum.HumanoidStateType.Dead) end
-        char:ClearAllChildren()
-        local dummy = Instance.new("Model", Workspace)
-        LocalPlayer.Character = dummy
-        task.wait()
-        LocalPlayer.Character = nil
-        dummy:Destroy()
+        -- Clear children is a common way to force character reload without killing
+        -- char:ClearAllChildren() -- Might break things, relying on Dead state is safer
+        LocalPlayer.Character = nil -- Force character reload
     end)
     task.spawn(function()
         local newChar = LocalPlayer.CharacterAdded:Wait()
@@ -122,7 +97,7 @@ local function KickForSteal()
     LocalPlayer:Kick("Steal Complete - Auto Kick")
 end
 
-local PlayerFrames = {}
+-- Removed PlayerFrames table (related to Admin Panel player list)
 
 local function extractItem(txt, pattern)
     local l = txt:lower()
@@ -143,16 +118,15 @@ local function CheckText(txt)
         return
     end
     
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p == LocalPlayer then continue end
-        local n = p.Name:lower()
-        local d = p.DisplayName:lower()
-        
-        if l:find(n) or l:find(d) then
+    -- Check for steal messages directed at the local player
+    for _, word in ipairs(StealWords) do
+        if l:find(word) then
             local item = extractItem(txt, "is stealing ") or extractItem(txt, "stole your ") or extractItem(txt, "stole ")
             if item then
-                US.StealStatus[p.Name] = {expire = tick() + 5, item = item}
+                -- Store steal status, this could be used for other logic, but for now just indicates a steal happened.
+                US.StealStatus[LocalPlayer.Name] = {expire = tick() + 5, item = item}
             end
+            break -- Only need to find one steal word
         end
     end
 end
@@ -164,10 +138,12 @@ local function HookUI(obj)
     end
 end
 
+-- Hook existing UI
 for _, g in ipairs(PlayerGui:GetChildren()) do
     for _, d in ipairs(g:GetDescendants()) do HookUI(d) end
     table.insert(US.Connections, g.DescendantAdded:Connect(HookUI))
 end
+-- Hook UI added later
 table.insert(US.Connections, PlayerGui.ChildAdded:Connect(function(g)
     for _, d in ipairs(g:GetDescendants()) do HookUI(d) end
     table.insert(US.Connections, g.DescendantAdded:Connect(HookUI))
@@ -178,29 +154,18 @@ Gui.Name = "UnifiedPanel"
 Gui.ResetOnSpawn = false
 Gui.Parent = PlayerGui
 
+-- Main frame (this will now serve as the "Actions" panel itself)
 local Main = Instance.new("Frame", Gui)
-Main.Size = UDim2.new(0, 800, 0, 360)
-Main.Position = UDim2.new(1, -820, 1, -380)
+Main.Size = UDim2.new(0, 280, 0, 250) -- Adjusted size to fit only the action buttons and title
+Main.Position = UDim2.new(1, -290, 1, -260) -- Bottom-right position (280 width + 10 padding = -290, 250 height + 10 padding = -260)
 Main.BackgroundColor3 = Color3.fromRGB(12, 12, 14)
 Main.BorderSizePixel = 0
 Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)
 local Str = Instance.new("UIStroke", Main)
 Str.Color = Color3.fromRGB(35, 35, 40)
 
-local ActionPanel = Instance.new("Frame", Main)
-ActionPanel.Size = UDim2.new(0, 280, 1, 0)
-ActionPanel.BackgroundTransparency = 1
-
-local Div1 = Instance.new("Frame", Main)
-Div1.Size = UDim2.new(0, 1, 1, 0)
-Div1.Position = UDim2.new(0, 280, 0, 0)
-Div1.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-Div1.BorderSizePixel = 0
-
-local AdminPanel = Instance.new("Frame", Main)
-AdminPanel.Size = UDim2.new(1, -281, 1, 0)
-AdminPanel.Position = UDim2.new(0, 281, 0, 0)
-AdminPanel.BackgroundTransparency = 1
+-- Re-using the ActionPanel name for convenience, now points to Main
+local ActionPanel = Main 
 
 local TitleA = Instance.new("TextLabel", ActionPanel)
 TitleA.Size = UDim2.new(1, -20, 0, 36)
@@ -218,21 +183,7 @@ DivA.Position = UDim2.new(0.05, 0, 0, 40)
 DivA.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
 DivA.BorderSizePixel = 0
 
-local TitleB = Instance.new("TextLabel", AdminPanel)
-TitleB.Size = UDim2.new(1, -20, 0, 36)
-TitleB.Position = UDim2.new(0, 14, 0, 4)
-TitleB.BackgroundTransparency = 1
-TitleB.Text = "Admin Panel"
-TitleB.TextColor3 = Color3.fromRGB(255, 255, 255)
-TitleB.Font = Enum.Font.GothamBold
-TitleB.TextSize = 15
-TitleB.TextXAlignment = Enum.TextXAlignment.Left
-
-local DivB = Instance.new("Frame", AdminPanel)
-DivB.Size = UDim2.new(0.95, 0, 0, 1)
-DivB.Position = UDim2.new(0.025, 0, 0, 40)
-DivB.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-DivB.BorderSizePixel = 0
+-- Removed AdminPanel and its related dividers/titles
 
 local function CreateActionButton(name, yPos, defaultKey)
     local h = Instance.new("Frame", ActionPanel)
@@ -305,6 +256,7 @@ local function CreateActionToggle(name, yPos, state, cb)
     b.MouseButton1Click:Connect(function() state = not state upd(state, false) cb(state) end)
 end
 
+-- Create Action Buttons
 local ragBtn = CreateActionButton("Ragdoll Self", 50, US.RagdollKey)
 local rejBtn = CreateActionButton("Rejoin", 90, US.RejoinKey)
 local kckBtn = CreateActionButton("Kick", 130, US.KickKey)
@@ -321,308 +273,18 @@ for k, b in pairs(keyButtons) do
     end)
 end
 
-local APLeft = Instance.new("Frame", AdminPanel)
-APLeft.Size = UDim2.new(0, 190, 1, -45)
-APLeft.Position = UDim2.new(0, 10, 0, 45)
-APLeft.BackgroundTransparency = 1
+-- Removed Admin Panel specific UI elements and related creation functions (PList, RList, CGrid, CTog, CSlider)
+-- Removed UpdatePlayers and its connections
 
-local APRight = Instance.new("Frame", AdminPanel)
-APRight.Size = UDim2.new(1, -210, 1, -45)
-APRight.Position = UDim2.new(0, 205, 0, 45)
-APRight.BackgroundTransparency = 1
-
-local PList = Instance.new("ScrollingFrame", APLeft)
-PList.Size = UDim2.new(1, 0, 1, -5)
-PList.BackgroundTransparency = 1
-PList.ScrollBarThickness = 2
-PList.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
-local PLayout = Instance.new("UIListLayout", PList)
-PLayout.SortOrder = Enum.SortOrder.LayoutOrder
-PLayout.Padding = UDim.new(0, 6)
-
-local RList = Instance.new("Frame", APRight)
-RList.Size = UDim2.new(1, 0, 1, 0)
-RList.BackgroundTransparency = 1
-local RLayout = Instance.new("UIListLayout", RList)
-RLayout.SortOrder = Enum.SortOrder.LayoutOrder
-RLayout.Padding = UDim.new(0, 8)
-
-local function UpdatePlayers()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p == LocalPlayer then continue end
-        local isSel = (US.Selected == p.Name)
-        local stealData = US.StealStatus[p.Name]
-        local isStealing = stealData and stealData.expire > tick()
-        
-        if not PlayerFrames[p.Name] then
-            local f = Instance.new("Frame", PList)
-            f.Size = UDim2.new(1, -8, 0, 50)
-            f.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-            Instance.new("UICorner", f).CornerRadius = UDim.new(0, 6)
-            local fs = Instance.new("UIStroke", f)
-            fs.Thickness = 1
-            
-            local img = Instance.new("ImageLabel", f)
-            img.Size = UDim2.new(0, 38, 0, 38)
-            img.Position = UDim2.new(0, 6, 0, 6)
-            img.Image = "rbxthumb://type=AvatarHeadShot&id="..p.UserId.."&w=150&h=150"
-            img.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-            Instance.new("UICorner", img).CornerRadius = UDim.new(1, 0)
-            
-            local n = Instance.new("TextLabel", f)
-            n.Size = UDim2.new(1, -54, 0, 20)
-            n.Position = UDim2.new(0, 50, 0, 4)
-            n.BackgroundTransparency = 1
-            n.Text = p.Name
-            n.Font = Enum.Font.GothamBold
-            n.TextSize = 11
-            n.TextXAlignment = Enum.TextXAlignment.Left
-            n.TextTruncate = Enum.TextTruncate.AtEnd
-            
-            local st = Instance.new("TextLabel", f)
-            st.Size = UDim2.new(1, -54, 0, 18)
-            st.Position = UDim2.new(0, 50, 0, 24)
-            st.BackgroundTransparency = 1
-            st.Text = ""
-            st.Font = Enum.Font.Gotham
-            st.TextSize = 10
-            st.TextXAlignment = Enum.TextXAlignment.Left
-            st.TextTruncate = Enum.TextTruncate.AtEnd
-            
-            local btn = Instance.new("TextButton", f)
-            btn.Size = UDim2.new(1, 0, 1, 0)
-            btn.BackgroundTransparency = 1
-            btn.Text = ""
-            btn.MouseButton1Click:Connect(function() US.Selected = p.Name UpdatePlayers() end)
-            
-            PlayerFrames[p.Name] = {Frame = f, Stroke = fs, Name = n, Status = st}
-        end
-        
-        local pf = PlayerFrames[p.Name]
-        pf.Status.Text = isStealing and ("Steals: " .. stealData.item) or ""
-        pf.Status.TextColor3 = isStealing and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(150, 150, 150)
-        
-        if isStealing then
-            pf.Stroke.Color = Color3.fromRGB(255, 80, 80)
-        elseif isSel then
-            pf.Stroke.Color = Color3.fromRGB(255, 255, 255)
-        else
-            pf.Stroke.Color = Color3.fromRGB(50, 50, 50)
-        end
-        
-        pf.Frame.BackgroundColor3 = isSel and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(20, 20, 20)
-        pf.Name.TextColor3 = isSel and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
-    end
-end
-
-local function CGrid(order)
-    local f = Instance.new("Frame", RList)
-    f.Size = UDim2.new(1, 0, 0, 128)
-    f.BackgroundTransparency = 1
-    f.LayoutOrder = order
-    local g = Instance.new("UIGridLayout", f)
-    g.CellSize = UDim2.new(0.48, 0, 0, 26)
-    g.CellPadding = UDim2.new(0.04, 0, 0, 8)
-    local btns = {}
-    for _, c in ipairs(CmdList) do
-        local b = Instance.new("TextButton", f)
-        b.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-        b.Text = c:upper()
-        b.TextColor3 = Color3.fromRGB(255, 255, 255)
-        b.Font = Enum.Font.GothamBold
-        b.TextSize = 10
-        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
-        local s = Instance.new("UIStroke", b)
-        s.Color = Color3.fromRGB(80, 80, 80)
-        b.MouseButton1Click:Connect(function() exec(US.Selected, c) end)
-        btns[c] = {btn = b, defText = c:upper(), str = s}
-    end
-    return btns
-end
-
-local function CTog(name, state, order, cb)
-    local h = Instance.new("Frame", RList)
-    h.Size = UDim2.new(1, 0, 0, 34)
-    h.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-    h.LayoutOrder = order
-    Instance.new("UICorner", h).CornerRadius = UDim.new(0, 4)
-    Instance.new("UIStroke", h).Color = Color3.fromRGB(80, 80, 80)
-    local l = Instance.new("TextLabel", h)
-    l.Size = UDim2.new(0.65, 0, 1, 0)
-    l.Position = UDim2.new(0, 10, 0, 0)
-    l.BackgroundTransparency = 1
-    l.Text = name
-    l.Font = Enum.Font.GothamBold
-    l.TextSize = 11
-    l.TextColor3 = Color3.fromRGB(255, 255, 255)
-    l.TextXAlignment = Enum.TextXAlignment.Left
-    local bg = Instance.new("Frame", h)
-    bg.Size = UDim2.new(0, 36, 0, 18)
-    bg.Position = UDim2.new(1, -46, 0.5, -9)
-    Instance.new("UICorner", bg).CornerRadius = UDim.new(1, 0)
-    local c = Instance.new("Frame", bg)
-    c.Size = UDim2.new(0, 14, 0, 14)
-    c.Position = UDim2.new(0, 2, 0.5, -7)
-    Instance.new("UICorner", c).CornerRadius = UDim.new(1, 0)
-    local b = Instance.new("TextButton", h)
-    b.Size = UDim2.new(1, 0, 1, 0)
-    b.BackgroundTransparency = 1
-    b.Text = ""
-    local function upd(a, inst)
-        local pos = a and UDim2.new(0, 20, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
-        local col = a and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(150, 150, 150)
-        local bgc = a and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(40, 40, 40)
-        if inst then
-            c.Position = pos c.BackgroundColor3 = col bg.BackgroundColor3 = bgc
-        else
-            TweenService:Create(c, TweenInfo.new(0.2), {Position = pos, BackgroundColor3 = col}):Play()
-            TweenService:Create(bg, TweenInfo.new(0.2), {BackgroundColor3 = bgc}):Play()
-        end
-    end
-    upd(state, true)
-    b.MouseButton1Click:Connect(function() state = not state upd(state, false) cb(state) end)
-end
-
-local function CSlider(name, min, max, cur, order, cb)
-    local h = Instance.new("Frame", RList)
-    h.Size = UDim2.new(1, 0, 0, 44)
-    h.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-    h.LayoutOrder = order
-    Instance.new("UICorner", h).CornerRadius = UDim.new(0, 4)
-    Instance.new("UIStroke", h).Color = Color3.fromRGB(80, 80, 80)
-    local l = Instance.new("TextLabel", h)
-    l.Size = UDim2.new(1, -20, 0, 20)
-    l.Position = UDim2.new(0, 10, 0, 2)
-    l.BackgroundTransparency = 1
-    l.Text = name .. ": " .. cur
-    l.Font = Enum.Font.GothamBold
-    l.TextSize = 11
-    l.TextColor3 = Color3.fromRGB(255, 255, 255)
-    l.TextXAlignment = Enum.TextXAlignment.Left
-    local sb = Instance.new("TextButton", h)
-    sb.Size = UDim2.new(1, -20, 0, 6)
-    sb.Position = UDim2.new(0, 10, 0, 28)
-    sb.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    sb.Text = ""
-    Instance.new("UICorner", sb).CornerRadius = UDim.new(1, 0)
-    local f = Instance.new("Frame", sb)
-    f.Size = UDim2.new((cur - min)/(max - min), 0, 1, 0)
-    f.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    Instance.new("UICorner", f).CornerRadius = UDim.new(1, 0)
-    local d = false
-    local function move(i)
-        local pct = math.clamp((i.Position.X - sb.AbsolutePosition.X) / sb.AbsoluteSize.X, 0, 1)
-        local val = math.floor(min + ((max - min) * pct))
-        f.Size = UDim2.new(pct, 0, 1, 0)
-        l.Text = name .. ": " .. val
-        cb(val)
-    end
-    sb.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then d = true move(i) end end)
-    UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then d = false end end)
-    UserInputService.InputChanged:Connect(function(i) if d and i.UserInputType == Enum.UserInputType.MouseMovement then move(i) end end)
-end
-
-local CBtns = CGrid(1)
-CTog("Proximity AP", US.ProximityAP, 2, function(s) US.ProximityAP = s SaveSettings() end)
-CSlider("Proximity Radius", 5, 50, US.ProximityRadius, 3, function(v) US.ProximityRadius = v SaveSettings() end)
-CTog("Click To AP", US.ClickToAP, 4, function(s) US.ClickToAP = s SaveSettings() end)
-
-UpdatePlayers()
-table.insert(US.Connections, Players.PlayerAdded:Connect(UpdatePlayers))
-table.insert(US.Connections, Players.PlayerRemoving:Connect(function(p)
-    if PlayerFrames[p.Name] then
-        PlayerFrames[p.Name].Frame:Destroy()
-        PlayerFrames[p.Name] = nil
-    end
-end))
-
+-- Drag functionality for the Main frame (now the Actions panel)
 local drag, dStart, sPos
 Main.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then drag = true dStart = i.Position sPos = Main.Position end end)
 UserInputService.InputChanged:Connect(function(i) if drag and i.UserInputType == Enum.UserInputType.MouseMovement then Main.Position = UDim2.new(sPos.X.Scale, sPos.X.Offset + (i.Position.X - dStart.X), sPos.Y.Scale, sPos.Y.Offset + (i.Position.Y - dStart.Y)) end end)
 UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then drag = false end end)
 
-table.insert(US.Connections, RunService.Heartbeat:Connect(function()
-    UpdatePlayers()
-    local ap = PlayerGui:FindFirstChild("AdminPanel")
-    local p = ap and ap:FindFirstChild("AdminPanel")
-    local sc = p and p:FindFirstChild("Content") and p.Content:FindFirstChild("ScrollingFrame")
-    for c, d in pairs(CBtns) do
-        local rb = sc and sc:FindFirstChild(c)
-        if rb then
-            local cd = rb:GetAttribute("OnCooldown")
-            local t = rb:FindFirstChild("Timer") and rb.Timer.Text or ""
-            local vis = rb:FindFirstChild("Timer") and rb.Timer.Visible
-            if cd and t ~= "" and vis then
-                d.btn.Text = t .. "s"
-                d.btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                d.btn.TextColor3 = Color3.fromRGB(0, 0, 0)
-                d.str.Color = Color3.fromRGB(255, 255, 255)
-            else
-                d.btn.Text = d.defText
-                d.btn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-                d.btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-                d.str.Color = Color3.fromRGB(80, 80, 80)
-            end
-        end
-    end
-end))
-
-local ProximityAura = Instance.new("Part")
-ProximityAura.Name = "ProximityAP"
-ProximityAura.Anchored = true
-ProximityAura.CanCollide = false
-ProximityAura.CastShadow = false
-ProximityAura.Material = Enum.Material.Neon
-ProximityAura.Color = Color3.fromRGB(255, 255, 255)
-ProximityAura.Transparency = 0.8
-ProximityAura.Shape = Enum.PartType.Cylinder
-
-table.insert(US.Connections, RunService.Heartbeat:Connect(function()
-    local c = LocalPlayer.Character
-    local hrp = c and c:FindFirstChild("HumanoidRootPart")
-    if US.ProximityAP and hrp then
-        ProximityAura.Parent = Workspace
-        ProximityAura.Size = Vector3.new(0.1, US.ProximityRadius * 2, US.ProximityRadius * 2)
-        ProximityAura.CFrame = hrp.CFrame * CFrame.Angles(0, 0, math.rad(90)) - Vector3.new(0, 2.5, 0)
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                if (p.Character.HumanoidRootPart.Position - hrp.Position).Magnitude <= US.ProximityRadius then
-                    local nw = tick()
-                    if not US.LastTime[p.Name] or (nw - US.LastTime[p.Name] > 1.5) then
-                        US.LastTime[p.Name] = nw
-                        fireCycle(p)
-                    end
-                end
-            end
-        end
-    else
-        ProximityAura.Parent = nil
-    end
-end))
-
-local HL = Instance.new("Highlight")
-HL.FillColor = Color3.fromRGB(255, 255, 255)
-HL.FillTransparency = 0.5
-HL.OutlineColor = Color3.fromRGB(255, 255, 255)
-local HTarget = nil
-
-table.insert(US.Connections, RunService.RenderStepped:Connect(function()
-    if not US.ClickToAP then HL.Parent = nil HTarget = nil return end
-    local ray = Mouse.UnitRay
-    local cl, bd = nil, 20
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-            local pos = p.Character.HumanoidRootPart.Position
-            local v = pos - ray.Origin
-            local proj = v:Dot(ray.Direction)
-            if proj > 0 then
-                local d = (v - ray.Direction * proj).Magnitude
-                if d <= bd then bd = d cl = p end
-            end
-        end
-    end
-    if cl then HTarget = cl HL.Parent = cl.Character else HTarget = nil HL.Parent = nil end
-end))
+-- Removed the Heartbeat connection that updated Admin Panel command cooldowns and player lists
+-- Removed ProximityAura and its related Heartbeat loop
+-- Removed Highlight (HL) and its RenderStepped loop for ClickToAP
 
 table.insert(US.Connections, UserInputService.InputBegan:Connect(function(i, gp)
     if gp then return end
@@ -645,9 +307,7 @@ table.insert(US.Connections, UserInputService.InputBegan:Connect(function(i, gp)
         elseif k == US.KickKey then DoKick()
         elseif k == US.ResetKey then DoReset() end
     end
-    if i.UserInputType == Enum.UserInputType.MouseButton1 and US.ClickToAP and HTarget then
-        fireCycle(HTarget)
-    end
+    -- Removed ClickToAP logic
 end))
 
 LocalPlayer.CharacterAdded:Connect(function()
@@ -661,6 +321,5 @@ function US.Disable()
     US.Connections = {}
     SaveSettings()
     if Gui then Gui:Destroy() end
-    if ProximityAura then ProximityAura:Destroy() end
-    if HL then HL:Destroy() end
+    -- Removed ProximityAura and Highlight cleanup
 end
