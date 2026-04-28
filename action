@@ -1,19 +1,18 @@
 if not game:IsLoaded() then game.Loaded:Wait() end
 
-local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
+local Players        = game:GetService("Players")
+local TweenService   = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-local HttpService = game:GetService("HttpService")
-local TeleportService = game:GetService("TeleportService")
-local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
+local HttpService    = game:GetService("HttpService")
+local TeleportService= game:GetService("TeleportService")
+local RunService     = game:GetService("RunService")
+local Workspace      = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-local Mouse = LocalPlayer:GetMouse()
-
-local SAVE_KEY = "UnifiedSystem_V5_" .. LocalPlayer.UserId
+local PlayerGui   = LocalPlayer:WaitForChild("PlayerGui")
+local Mouse       = LocalPlayer:GetMouse()
+local SAVE_KEY    = "UnifiedSystem_V5_" .. LocalPlayer.UserId
 
 if PlayerGui:FindFirstChild("UnifiedPanel") then PlayerGui.UnifiedPanel:Destroy() end
 if getgenv().UnifiedSystem then pcall(function() getgenv().UnifiedSystem.Disable() end) end
@@ -31,45 +30,53 @@ getgenv().UnifiedSystem = {
     ProximityAP = false,
     ClickToAP = false,
     ProximityRadius = 25,
-    HideAP = false
+    AutoOpenOnLoad = true,
+    GuiScale = 50,
+    HideAP = false,
 }
 local US = getgenv().UnifiedSystem
+
+local isInteractingWithSlider = false
 
 local StealWords = {"is stealing","stole from","robbing","stole your","stole"}
 
 local function SaveSettings()
     pcall(function()
-        writefile(SAVE_KEY .. ".json", HttpService:JSONEncode({
-            RagdollKey = US.RagdollKey,
-            RejoinKey = US.RejoinKey,
-            KickKey = US.KickKey,
-            ResetKey = US.ResetKey,
-            KickAfterSteal = US.KickAfterSteal,
-            ProximityAP = US.ProximityAP,
-            ClickToAP = US.ClickToAP,
+        writefile(SAVE_KEY..".json", HttpService:JSONEncode({
+            RagdollKey      = US.RagdollKey,
+            RejoinKey       = US.RejoinKey,
+            KickKey         = US.KickKey,
+            ResetKey        = US.ResetKey,
+            KickAfterSteal  = US.KickAfterSteal,
+            ProximityAP     = US.ProximityAP,
+            ClickToAP       = US.ClickToAP,
             ProximityRadius = US.ProximityRadius,
-            HideAP = US.HideAP
+            AutoOpenOnLoad  = US.AutoOpenOnLoad,
+            GuiScale        = US.GuiScale,
+            HideAP          = US.HideAP,
         }))
     end)
 end
 
 pcall(function()
-    if isfile and isfile(SAVE_KEY .. ".json") then
-        local d = HttpService:JSONDecode(readfile(SAVE_KEY .. ".json"))
-        if d.RagdollKey ~= nil then US.RagdollKey = d.RagdollKey end
-        if d.RejoinKey ~= nil then US.RejoinKey = d.RejoinKey end
-        if d.KickKey ~= nil then US.KickKey = d.KickKey end
-        if d.ResetKey ~= nil then US.ResetKey = d.ResetKey end
-        if d.KickAfterSteal ~= nil then US.KickAfterSteal = d.KickAfterSteal end
-        if d.ProximityAP ~= nil then US.ProximityAP = d.ProximityAP end
-        if d.ClickToAP ~= nil then US.ClickToAP = d.ClickToAP end
+    if isfile and isfile(SAVE_KEY..".json") then
+        local d = HttpService:JSONDecode(readfile(SAVE_KEY..".json"))
+        if d.RagdollKey      ~= nil then US.RagdollKey      = d.RagdollKey end
+        if d.RejoinKey       ~= nil then US.RejoinKey       = d.RejoinKey end
+        if d.KickKey         ~= nil then US.KickKey         = d.KickKey end
+        if d.ResetKey        ~= nil then US.ResetKey        = d.ResetKey end
+        if d.KickAfterSteal  ~= nil then US.KickAfterSteal  = d.KickAfterSteal end
+        if d.ProximityAP     ~= nil then US.ProximityAP     = d.ProximityAP end
+        if d.ClickToAP       ~= nil then US.ClickToAP       = d.ClickToAP end
         if d.ProximityRadius ~= nil then US.ProximityRadius = d.ProximityRadius end
-        if d.HideAP ~= nil then US.HideAP = d.HideAP end
+        if d.AutoOpenOnLoad  ~= nil then US.AutoOpenOnLoad  = d.AutoOpenOnLoad end
+        if d.GuiScale        ~= nil then US.GuiScale        = d.GuiScale end
+        if d.HideAP          ~= nil then US.HideAP          = d.HideAP end
     end
 end)
 
 local AdminCommands = {}
-local allCmdList = {}
+local cmdList = {}
 
 pcall(function()
     local Admin = ReplicatedStorage:WaitForChild("Datas"):WaitForChild("AdminCommands")
@@ -79,38 +86,13 @@ pcall(function()
             local cmdName = data.name or mod.Name
             AdminCommands[cmdName] = true
             if cmdName ~= "control" and cmdName ~= "nightvision" then
-                table.insert(allCmdList, cmdName)
+                table.insert(cmdList, cmdName)
             end
         end
     end
 end)
 
-local function findCmdCI(target)
-    local t = string.lower(target)
-    for name in pairs(AdminCommands) do
-        if string.lower(name) == t then
-            return name
-        end
-    end
-    return nil
-end
-
-local CMD_JAIL = findCmdCI("jail") or "Jail"
-local CMD_BALLOON = findCmdCI("balloon") or "Balloon"
-local CMD_RAGDOLL = findCmdCI("ragdoll") or "Ragdoll"
-local CMD_ROCKET = findCmdCI("rocket") or "Rocket"
-
-local CYCLE_ORDER = {
-    "Jail",
-    "Balloon",
-    "Ragdoll",
-    "Rocket",
-    "Inverse",
-    "Tiny",
-    "Jumpscare",
-    "Morph"
-}
-
+local CYCLE_ORDER = {"Jail","Balloon","Ragdoll","Rocket","Inverse","Tiny","Jumpscare","Morph"}
 local cycleCmds = {}
 do
     for _, want in ipairs(CYCLE_ORDER) do
@@ -123,7 +105,7 @@ do
         end
     end
     if #cycleCmds == 0 then
-        for _, name in ipairs(allCmdList) do
+        for _, name in ipairs(cmdList) do
             table.insert(cycleCmds, name)
         end
     end
@@ -133,7 +115,7 @@ local APIndex = {}
 
 local function getTB()
     local ap = PlayerGui:FindFirstChild("AdminPanel")
-    local p = ap and ap:FindFirstChild("AdminPanel")
+    local p  = ap and ap:FindFirstChild("AdminPanel")
     local cb = p and p:FindFirstChild("CommandBox")
     return cb and cb:FindFirstChild("TextBox")
 end
@@ -174,8 +156,7 @@ local function nearest()
     return best
 end
 
-local function DoRagdoll()
-end
+local function DoRagdoll() end
 
 local function DoRejoin()
     pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) end)
@@ -192,7 +173,7 @@ local function DoReset()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
     local origCFrame = hrp.CFrame
-    local camCFrame = Workspace.CurrentCamera.CFrame
+    local camCFrame  = Workspace.CurrentCamera.CFrame
     pcall(function()
         local hum = char:FindFirstChildWhichIsA("Humanoid")
         if hum then hum:ChangeState(Enum.HumanoidStateType.Dead) end
@@ -200,7 +181,7 @@ local function DoReset()
     end)
     task.spawn(function()
         local newChar = LocalPlayer.CharacterAdded:Wait()
-        local newHRP = newChar:WaitForChild("HumanoidRootPart", 5)
+        local newHRP  = newChar:WaitForChild("HumanoidRootPart", 5)
         if newHRP then newHRP.CFrame = origCFrame end
         Workspace.CurrentCamera.CFrame = camCFrame
         task.wait(3)
@@ -226,16 +207,11 @@ end
 local function CheckText(txt)
     if type(txt) ~= "string" or txt == "" then return end
     local l = string.lower(txt)
-    if l:find("you stole") then
-        KickForSteal()
-        return
-    end
+    if l:find("you stole") then KickForSteal() return end
     for _, word in ipairs(StealWords) do
         if l:find(word) then
             local item = extractItem(txt, "is stealing ") or extractItem(txt, "stole your ") or extractItem(txt, "stole ")
-            if item then
-                US.StealStatus[LocalPlayer.Name] = {expire = tick() + 5, item = item}
-            end
+            if item then US.StealStatus[LocalPlayer.Name] = {expire = tick() + 5, item = item} end
             break
         end
     end
@@ -252,30 +228,94 @@ for _, g in ipairs(PlayerGui:GetChildren()) do
     for _, d in ipairs(g:GetDescendants()) do HookUI(d) end
     table.insert(US.Connections, g.DescendantAdded:Connect(HookUI))
 end
-
 table.insert(US.Connections, PlayerGui.ChildAdded:Connect(function(g)
     for _, d in ipairs(g:GetDescendants()) do HookUI(d) end
     table.insert(US.Connections, g.DescendantAdded:Connect(HookUI))
 end))
+
+-- ============================================
+-- GUI
+-- ============================================
 
 local Gui = Instance.new("ScreenGui")
 Gui.Name = "UnifiedPanel"
 Gui.ResetOnSpawn = false
 Gui.Parent = PlayerGui
 
+local GlobalUIScale = Instance.new("UIScale")
+GlobalUIScale.Name = "GlobalScale"
+GlobalUIScale.Scale = 0.5 + (1.5 - 0.5) * ((US.GuiScale - 20) / (100 - 20))
+GlobalUIScale.Parent = Gui
+
+-- ============================================
+-- ACTIONS PANEL
+-- ============================================
+
 local Main = Instance.new("Frame", Gui)
-Main.Size = UDim2.new(0, 280, 0, 300)
-Main.Position = UDim2.new(1, -290, 1, -300)
+Main.Size = UDim2.new(0, 280, 0, 400)
+Main.Position = UDim2.new(1, -290, 1, -410)
 Main.BackgroundColor3 = Color3.fromRGB(12, 12, 14)
 Main.BorderSizePixel = 0
 Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)
-local Str = Instance.new("UIStroke", Main)
-Str.Color = Color3.fromRGB(35, 35, 40)
+Instance.new("UIStroke", Main).Color = Color3.fromRGB(35, 35, 40)
+
+-- Open Button Actions
+local OpenButtonMain = Instance.new("TextButton")
+OpenButtonMain.Name             = "OpenButtonMain"
+OpenButtonMain.Size             = UDim2.new(0, 150, 0, 32)
+OpenButtonMain.Position         = UDim2.new(1, -290, 1, -52)
+OpenButtonMain.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+OpenButtonMain.BorderSizePixel  = 0
+OpenButtonMain.Text             = "Open Actions"
+OpenButtonMain.TextColor3       = Color3.fromRGB(170, 170, 180)
+OpenButtonMain.Font             = Enum.Font.GothamBold
+OpenButtonMain.TextSize         = 12
+OpenButtonMain.AutoButtonColor  = false
+OpenButtonMain.Visible          = false
+OpenButtonMain.Parent           = Gui
+Instance.new("UICorner", OpenButtonMain).CornerRadius = UDim.new(0, 8)
+Instance.new("UIStroke", OpenButtonMain).Color = Color3.fromRGB(40, 40, 48)
+
+OpenButtonMain.MouseEnter:Connect(function()
+    TweenService:Create(OpenButtonMain, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(28, 28, 34)}):Play()
+end)
+OpenButtonMain.MouseLeave:Connect(function()
+    TweenService:Create(OpenButtonMain, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(18, 18, 22)}):Play()
+end)
+
+local function updateOpenMainVisibility()
+    OpenButtonMain.Visible = not Main.Visible
+end
+
+OpenButtonMain.MouseButton1Click:Connect(function()
+    Main.Visible = true
+    OpenButtonMain.Visible = false
+end)
+
+local openMainDrag, openMainStart, openMainPos
+OpenButtonMain.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        openMainDrag = true; openMainStart = i.Position; openMainPos = OpenButtonMain.Position
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if openMainDrag and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - openMainStart
+        if delta.Magnitude > 5 then
+            OpenButtonMain.Position = UDim2.new(openMainPos.X.Scale, openMainPos.X.Offset + delta.X, openMainPos.Y.Scale, openMainPos.Y.Offset + delta.Y)
+        end
+    end
+end)
+UserInputService.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        openMainDrag = false
+    end
+end)
 
 local ActionPanel = Main
 
 local TitleA = Instance.new("TextLabel", ActionPanel)
-TitleA.Size = UDim2.new(1, -20, 0, 36)
+TitleA.Size = UDim2.new(1, -50, 0, 36)
 TitleA.Position = UDim2.new(0, 14, 0, 4)
 TitleA.BackgroundTransparency = 1
 TitleA.Text = "Actions"
@@ -284,6 +324,28 @@ TitleA.Font = Enum.Font.GothamBold
 TitleA.TextSize = 15
 TitleA.TextXAlignment = Enum.TextXAlignment.Left
 TitleA.Active = true
+
+local CloseBtnMain = Instance.new("TextButton", Main)
+CloseBtnMain.Size             = UDim2.new(0, 26, 0, 26)
+CloseBtnMain.Position         = UDim2.new(1, -32, 0, 6)
+CloseBtnMain.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+CloseBtnMain.BorderSizePixel  = 0
+CloseBtnMain.Text             = "×"
+CloseBtnMain.TextColor3       = Color3.fromRGB(140, 140, 150)
+CloseBtnMain.Font             = Enum.Font.GothamBold
+CloseBtnMain.TextSize         = 18
+CloseBtnMain.AutoButtonColor  = false
+Instance.new("UICorner", CloseBtnMain).CornerRadius = UDim.new(0, 6)
+CloseBtnMain.MouseEnter:Connect(function()
+    TweenService:Create(CloseBtnMain, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(60,30,30), TextColor3 = Color3.fromRGB(255,100,100)}):Play()
+end)
+CloseBtnMain.MouseLeave:Connect(function()
+    TweenService:Create(CloseBtnMain, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(25,25,30), TextColor3 = Color3.fromRGB(140,140,150)}):Play()
+end)
+CloseBtnMain.MouseButton1Click:Connect(function()
+    Main.Visible = false
+    updateOpenMainVisibility()
+end)
 
 local DivA = Instance.new("Frame", ActionPanel)
 DivA.Size = UDim2.new(0.9, 0, 0, 1)
@@ -351,23 +413,20 @@ local function CreateActionToggle(name, yPos, state, cb)
     b.Text = ""
     local function upd(a, inst)
         local pos = a and UDim2.new(0, 22, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
-        local bgc = a and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(80, 80, 90)
-        local mbgc = a and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(35, 35, 40)
-        local tc = a and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(170, 170, 180)
+        local bgc = a and Color3.fromRGB(255,255,255) or Color3.fromRGB(80,80,90)
+        local mbgc = a and Color3.fromRGB(255,255,255) or Color3.fromRGB(35,35,40)
+        local tc = a and Color3.fromRGB(255,255,255) or Color3.fromRGB(170,170,180)
         if inst then
-            c.Position = pos
-            c.BackgroundColor3 = bgc
-            bg.BackgroundColor3 = mbgc
-            l.TextColor3 = tc
+            c.Position=pos c.BackgroundColor3=bgc bg.BackgroundColor3=mbgc l.TextColor3=tc
         else
-            TweenService:Create(c, TweenInfo.new(0.2), {Position = pos, BackgroundColor3 = bgc}):Play()
-            TweenService:Create(bg, TweenInfo.new(0.2), {BackgroundColor3 = mbgc}):Play()
-            TweenService:Create(l, TweenInfo.new(0.2), {TextColor3 = tc}):Play()
+            TweenService:Create(c, TweenInfo.new(0.2), {Position=pos, BackgroundColor3=bgc}):Play()
+            TweenService:Create(bg, TweenInfo.new(0.2), {BackgroundColor3=mbgc}):Play()
+            TweenService:Create(l, TweenInfo.new(0.2), {TextColor3=tc}):Play()
         end
     end
     upd(state, true)
     b.MouseButton1Click:Connect(function() state = not state upd(state, false) cb(state) end)
-    return h
+    return upd
 end
 
 local ragBtn = CreateActionButton("Ragdoll Self", 50, US.RagdollKey)
@@ -376,9 +435,299 @@ local kckBtn = CreateActionButton("Kick", 130, US.KickKey)
 local rstBtn = CreateActionButton("Reset", 170, US.ResetKey)
 CreateActionToggle("Kick After Steal", 210, US.KickAfterSteal, function(s) US.KickAfterSteal = s SaveSettings() end)
 
+-- ============================================
+-- AP TOOLS PANEL (Forward declared so HideAP toggle can reference it)
+-- ============================================
+
+local APFrame = Instance.new("Frame", Gui)
+APFrame.Size = UDim2.new(0, 220, 0, 170)
+APFrame.Position = UDim2.new(1, -290-230, 1, -180)
+APFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 14)
+APFrame.BorderSizePixel = 0
+Instance.new("UICorner", APFrame).CornerRadius = UDim.new(0, 8)
+Instance.new("UIStroke", APFrame).Color = Color3.fromRGB(35, 35, 40)
+
+local OpenButtonAP = Instance.new("TextButton")
+OpenButtonAP.Name             = "OpenButtonAP"
+OpenButtonAP.Size             = UDim2.new(0, 130, 0, 32)
+OpenButtonAP.Position         = UDim2.new(1, -290-230, 1, -52)
+OpenButtonAP.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+OpenButtonAP.BorderSizePixel  = 0
+OpenButtonAP.Text             = "Open AP Tools"
+OpenButtonAP.TextColor3       = Color3.fromRGB(170, 170, 180)
+OpenButtonAP.Font             = Enum.Font.GothamBold
+OpenButtonAP.TextSize         = 12
+OpenButtonAP.AutoButtonColor  = false
+OpenButtonAP.Visible          = false
+OpenButtonAP.Parent           = Gui
+Instance.new("UICorner", OpenButtonAP).CornerRadius = UDim.new(0, 8)
+Instance.new("UIStroke", OpenButtonAP).Color = Color3.fromRGB(40, 40, 48)
+
+OpenButtonAP.MouseEnter:Connect(function()
+    TweenService:Create(OpenButtonAP, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(28, 28, 34)}):Play()
+end)
+OpenButtonAP.MouseLeave:Connect(function()
+    TweenService:Create(OpenButtonAP, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(18, 18, 22)}):Play()
+end)
+
+local function updateOpenAPVisibility()
+    if US.HideAP then
+        OpenButtonAP.Visible = false
+        APFrame.Visible = false
+    else
+        OpenButtonAP.Visible = not APFrame.Visible
+    end
+end
+
+OpenButtonAP.MouseButton1Click:Connect(function()
+    APFrame.Visible = true
+    OpenButtonAP.Visible = false
+end)
+
+local openAPDrag, openAPStart, openAPPos
+OpenButtonAP.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        openAPDrag = true; openAPStart = i.Position; openAPPos = OpenButtonAP.Position
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if openAPDrag and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - openAPStart
+        if delta.Magnitude > 5 then
+            OpenButtonAP.Position = UDim2.new(openAPPos.X.Scale, openAPPos.X.Offset + delta.X, openAPPos.Y.Scale, openAPPos.Y.Offset + delta.Y)
+        end
+    end
+end)
+UserInputService.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        openAPDrag = false
+    end
+end)
+
+-- ============================================
+-- HIDE AP FUNCTIONS TOGGLE (in Actions Panel)
+-- ============================================
+
+local hideAPUpd = CreateActionToggle("Hide AP Functions", 250, US.HideAP, function(s)
+    US.HideAP = s
+    if s then
+        APFrame.Visible = false
+        OpenButtonAP.Visible = false
+    else
+        APFrame.Visible = true
+        OpenButtonAP.Visible = false
+    end
+    SaveSettings()
+end)
+
+-- ============================================
+-- SETTINGS SECTION - ACTIONS PANEL
+-- ============================================
+
+local SettingsDivMain = Instance.new("Frame", Main)
+SettingsDivMain.Size             = UDim2.new(0.9, 0, 0, 1)
+SettingsDivMain.Position         = UDim2.new(0.05, 0, 0, 295)
+SettingsDivMain.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+SettingsDivMain.BorderSizePixel  = 0
+
+local SettingsLabelMain = Instance.new("TextLabel", Main)
+SettingsLabelMain.Size               = UDim2.new(0.9, 0, 0, 20)
+SettingsLabelMain.Position           = UDim2.new(0.05, 0, 0, 302)
+SettingsLabelMain.BackgroundTransparency = 1
+SettingsLabelMain.Text               = "Settings"
+SettingsLabelMain.TextColor3         = Color3.fromRGB(130, 130, 140)
+SettingsLabelMain.Font               = Enum.Font.GothamBold
+SettingsLabelMain.TextSize           = 11
+SettingsLabelMain.TextXAlignment     = Enum.TextXAlignment.Left
+
+-- Auto Open on Load
+local AutoOpenFrame = Instance.new("Frame", Main)
+AutoOpenFrame.Size             = UDim2.new(0.9, 0, 0, 30)
+AutoOpenFrame.Position         = UDim2.new(0.05, 0, 0, 325)
+AutoOpenFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+AutoOpenFrame.BorderSizePixel  = 0
+Instance.new("UICorner", AutoOpenFrame).CornerRadius = UDim.new(0, 6)
+
+local AutoOpenLabel = Instance.new("TextLabel", AutoOpenFrame)
+AutoOpenLabel.Size               = UDim2.new(0.65, 0, 1, 0)
+AutoOpenLabel.Position           = UDim2.new(0, 10, 0, 0)
+AutoOpenLabel.BackgroundTransparency = 1
+AutoOpenLabel.Text               = "Auto Open on Load"
+AutoOpenLabel.Font               = Enum.Font.Gotham
+AutoOpenLabel.TextSize           = 11
+AutoOpenLabel.TextXAlignment     = Enum.TextXAlignment.Left
+AutoOpenLabel.TextColor3         = Color3.fromRGB(160, 160, 175)
+
+local AutoOpenBg = Instance.new("Frame", AutoOpenFrame)
+AutoOpenBg.Size             = UDim2.new(0, 36, 0, 18)
+AutoOpenBg.Position         = UDim2.new(1, -46, 0.5, -9)
+AutoOpenBg.BackgroundColor3 = Color3.fromRGB(32, 32, 38)
+AutoOpenBg.BorderSizePixel  = 0
+Instance.new("UICorner", AutoOpenBg).CornerRadius = UDim.new(1, 0)
+
+local AutoOpenCircle = Instance.new("Frame", AutoOpenBg)
+AutoOpenCircle.Size             = UDim2.new(0, 14, 0, 14)
+AutoOpenCircle.Position         = UDim2.new(0, 2, 0.5, -7)
+AutoOpenCircle.BackgroundColor3 = Color3.fromRGB(90, 90, 100)
+AutoOpenCircle.BorderSizePixel  = 0
+Instance.new("UICorner", AutoOpenCircle).CornerRadius = UDim.new(1, 0)
+
+local AutoOpenBtn = Instance.new("TextButton", AutoOpenBg)
+AutoOpenBtn.Size               = UDim2.new(1, 0, 1, 0)
+AutoOpenBtn.BackgroundTransparency = 1
+AutoOpenBtn.Text               = ""
+
+local function updateAutoOpenVisual(instant)
+    local on = US.AutoOpenOnLoad
+    local cPos = on and UDim2.new(0, 20, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+    local cCol = on and Color3.fromRGB(200,200,210) or Color3.fromRGB(90,90,100)
+    local bgCol = on and Color3.fromRGB(55,55,65) or Color3.fromRGB(32,32,38)
+    local tCol = on and Color3.fromRGB(220,220,230) or Color3.fromRGB(160,160,175)
+    if instant then
+        AutoOpenCircle.Position = cPos
+        AutoOpenCircle.BackgroundColor3 = cCol
+        AutoOpenBg.BackgroundColor3 = bgCol
+        AutoOpenLabel.TextColor3 = tCol
+    else
+        TweenService:Create(AutoOpenCircle, TweenInfo.new(0.2), {Position=cPos, BackgroundColor3=cCol}):Play()
+        TweenService:Create(AutoOpenBg, TweenInfo.new(0.2), {BackgroundColor3=bgCol}):Play()
+        TweenService:Create(AutoOpenLabel, TweenInfo.new(0.2), {TextColor3=tCol}):Play()
+    end
+end
+updateAutoOpenVisual(true)
+AutoOpenBtn.MouseButton1Click:Connect(function()
+    US.AutoOpenOnLoad = not US.AutoOpenOnLoad
+    updateAutoOpenVisual(false)
+    SaveSettings()
+end)
+
+-- GUI Scale - GLOBAL
+local GuiScaleFrame = Instance.new("Frame", Main)
+GuiScaleFrame.Size             = UDim2.new(0.9, 0, 0, 36)
+GuiScaleFrame.Position         = UDim2.new(0.05, 0, 0, 360)
+GuiScaleFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+GuiScaleFrame.BorderSizePixel  = 0
+Instance.new("UICorner", GuiScaleFrame).CornerRadius = UDim.new(0, 6)
+
+local GuiScaleLabel = Instance.new("TextLabel", GuiScaleFrame)
+GuiScaleLabel.Size               = UDim2.new(0, 65, 1, 0)
+GuiScaleLabel.Position           = UDim2.new(0, 10, 0, 0)
+GuiScaleLabel.BackgroundTransparency = 1
+GuiScaleLabel.Text               = "GUI Scale"
+GuiScaleLabel.Font               = Enum.Font.Gotham
+GuiScaleLabel.TextSize           = 11
+GuiScaleLabel.TextXAlignment     = Enum.TextXAlignment.Left
+GuiScaleLabel.TextColor3         = Color3.fromRGB(160, 160, 175)
+
+local GuiScaleBar = Instance.new("Frame", GuiScaleFrame)
+GuiScaleBar.Size             = UDim2.new(0, 95, 0, 5)
+GuiScaleBar.Position         = UDim2.new(0, 80, 0.5, -2)
+GuiScaleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+GuiScaleBar.BorderSizePixel  = 0
+Instance.new("UICorner", GuiScaleBar).CornerRadius = UDim.new(1, 0)
+
+local GuiScaleFill = Instance.new("Frame", GuiScaleBar)
+GuiScaleFill.Size             = UDim2.new(0, 0, 1, 0)
+GuiScaleFill.BackgroundColor3 = Color3.fromRGB(200, 200, 210)
+GuiScaleFill.BorderSizePixel  = 0
+Instance.new("UICorner", GuiScaleFill).CornerRadius = UDim.new(1, 0)
+
+local GuiScaleKnob = Instance.new("Frame", GuiScaleBar)
+GuiScaleKnob.Size             = UDim2.new(0, 10, 0, 10)
+GuiScaleKnob.Position         = UDim2.new(0, -5, 0.5, -5)
+GuiScaleKnob.BackgroundColor3 = Color3.fromRGB(230, 230, 235)
+GuiScaleKnob.BorderSizePixel  = 0
+Instance.new("UICorner", GuiScaleKnob).CornerRadius = UDim.new(1, 0)
+
+local GuiScaleValueBG = Instance.new("Frame", GuiScaleFrame)
+GuiScaleValueBG.Size             = UDim2.new(0, 45, 0, 18)
+GuiScaleValueBG.Position         = UDim2.new(1, -52, 0.5, -9)
+GuiScaleValueBG.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+GuiScaleValueBG.BorderSizePixel  = 0
+Instance.new("UICorner", GuiScaleValueBG).CornerRadius = UDim.new(0, 4)
+
+local GuiScaleInput = Instance.new("TextBox", GuiScaleValueBG)
+GuiScaleInput.Size               = UDim2.new(1, 0, 1, 0)
+GuiScaleInput.BackgroundTransparency = 1
+GuiScaleInput.Text               = tostring(US.GuiScale) .. "%"
+GuiScaleInput.Font               = Enum.Font.GothamBold
+GuiScaleInput.TextSize           = 10
+GuiScaleInput.TextColor3         = Color3.fromRGB(200, 200, 210)
+GuiScaleInput.TextXAlignment     = Enum.TextXAlignment.Center
+GuiScaleInput.ClearTextOnFocus   = false
+GuiScaleInput.PlaceholderColor3  = Color3.fromRGB(100, 100, 110)
+
+local guiScaleDragging = false
+
+local function setGuiScaleFromAlpha(a, instant)
+    a = math.clamp(a, 0, 1)
+    local value = math.floor(20 + (100 - 20) * a + 0.5)
+    US.GuiScale = value
+    if not GuiScaleInput:IsFocused() then
+        GuiScaleInput.Text = tostring(value) .. "%"
+    end
+    local sizeX = GuiScaleBar.AbsoluteSize.X
+    if sizeX <= 0 then return end
+    local x = a * sizeX
+    if instant then
+        GuiScaleFill.Size = UDim2.new(0, x, 1, 0)
+        GuiScaleKnob.Position = UDim2.new(0, x - 5, 0.5, -5)
+    else
+        TweenService:Create(GuiScaleFill, TweenInfo.new(0.1), {Size = UDim2.new(0, x, 1, 0)}):Play()
+        TweenService:Create(GuiScaleKnob, TweenInfo.new(0.1), {Position = UDim2.new(0, x - 5, 0.5, -5)}):Play()
+    end
+    local scale = 0.5 + (1.5 - 0.5) * ((value - 20) / (100 - 20))
+    if instant then
+        GlobalUIScale.Scale = scale
+    else
+        TweenService:Create(GlobalUIScale, TweenInfo.new(0.15), {Scale = scale}):Play()
+    end
+    SaveSettings()
+end
+
+local function updateGuiScaleFromX(px)
+    local absPos = GuiScaleBar.AbsolutePosition.X
+    local sizeX = GuiScaleBar.AbsoluteSize.X
+    if sizeX <= 0 then return end
+    setGuiScaleFromAlpha((px - absPos) / sizeX, false)
+end
+
+GuiScaleInput.FocusLost:Connect(function()
+    local txt = GuiScaleInput.Text:gsub("%%", "")
+    local num = tonumber(txt)
+    if num then
+        num = math.clamp(math.floor(num + 0.5), 20, 100)
+        US.GuiScale = num
+        setGuiScaleFromAlpha((num - 20) / (100 - 20), false)
+    else
+        GuiScaleInput.Text = tostring(US.GuiScale) .. "%"
+    end
+end)
+
+GuiScaleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        guiScaleDragging = true; isInteractingWithSlider = true
+        updateGuiScaleFromX(input.Position.X)
+    end
+end)
+GuiScaleKnob.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        guiScaleDragging = true; isInteractingWithSlider = true
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if guiScaleDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        updateGuiScaleFromX(input.Position.X)
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if guiScaleDragging then guiScaleDragging = false; isInteractingWithSlider = false end
+    end
+end)
+
 local waitingForKey = nil
 local keyButtons = {RagdollKey = ragBtn, RejoinKey = rejBtn, KickKey = kckBtn, ResetKey = rstBtn}
-
 for k, b in pairs(keyButtons) do
     b.MouseButton1Click:Connect(function()
         waitingForKey = k
@@ -386,23 +735,21 @@ for k, b in pairs(keyButtons) do
     end)
 end
 
+-- Dragging Actions Panel
 local dragMain, dStartMain, sPosMain
 TitleA.InputBegan:Connect(function(i)
+    if isInteractingWithSlider then return end
     if i.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragMain = true
-        dStartMain = i.Position
-        sPosMain = Main.Position
+        dragMain = true; dStartMain = i.Position; sPosMain = Main.Position
     end
 end)
 UserInputService.InputChanged:Connect(function(i)
-    if dragMain and i.UserInputType == Enum.UserInputType.MouseMovement then
-        Main.Position = UDim2.new(sPosMain.X.Scale, sPosMain.X.Offset + (i.Position.X - dStartMain.X), sPosMain.Y.Scale, sPosMain.Y.Offset + (i.Position.Y - dStartMain.Y))
+    if dragMain and not isInteractingWithSlider and i.UserInputType == Enum.UserInputType.MouseMovement then
+        Main.Position = UDim2.new(sPosMain.X.Scale, sPosMain.X.Offset+(i.Position.X-dStartMain.X), sPosMain.Y.Scale, sPosMain.Y.Offset+(i.Position.Y-dStartMain.Y))
     end
 end)
 UserInputService.InputEnded:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragMain = false
-    end
+    if i.UserInputType == Enum.UserInputType.MouseButton1 then dragMain = false end
 end)
 
 LocalPlayer.CharacterAdded:Connect(function()
@@ -410,19 +757,12 @@ LocalPlayer.CharacterAdded:Connect(function()
     US.IgnoreNextSteal = false
 end)
 
-local APFrame = Instance.new("Frame", Gui)
-APFrame.Name = "APFrame"
-APFrame.Size = UDim2.new(0, 220, 0, 165)
-APFrame.Position = UDim2.new(1, -290-230, 1, -260)
-APFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 14)
-APFrame.BorderSizePixel = 0
-Instance.new("UICorner", APFrame).CornerRadius = UDim.new(0, 8)
-local APStroke = Instance.new("UIStroke", APFrame)
-APStroke.Color = Color3.fromRGB(35, 35, 40)
-APFrame.Visible = not US.HideAP
+-- ============================================
+-- AP TOOLS PANEL CONTENT
+-- ============================================
 
 local APTitle = Instance.new("TextLabel", APFrame)
-APTitle.Size = UDim2.new(1, -20, 0, 36)
+APTitle.Size = UDim2.new(1, -50, 0, 36)
 APTitle.Position = UDim2.new(0, 14, 0, 4)
 APTitle.BackgroundTransparency = 1
 APTitle.Text = "AP Tools"
@@ -431,6 +771,28 @@ APTitle.Font = Enum.Font.GothamBold
 APTitle.TextSize = 15
 APTitle.TextXAlignment = Enum.TextXAlignment.Left
 APTitle.Active = true
+
+local CloseBtnAP = Instance.new("TextButton", APFrame)
+CloseBtnAP.Size             = UDim2.new(0, 26, 0, 26)
+CloseBtnAP.Position         = UDim2.new(1, -32, 0, 6)
+CloseBtnAP.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+CloseBtnAP.BorderSizePixel  = 0
+CloseBtnAP.Text             = "×"
+CloseBtnAP.TextColor3       = Color3.fromRGB(140, 140, 150)
+CloseBtnAP.Font             = Enum.Font.GothamBold
+CloseBtnAP.TextSize         = 18
+CloseBtnAP.AutoButtonColor  = false
+Instance.new("UICorner", CloseBtnAP).CornerRadius = UDim.new(0, 6)
+CloseBtnAP.MouseEnter:Connect(function()
+    TweenService:Create(CloseBtnAP, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(60,30,30), TextColor3 = Color3.fromRGB(255,100,100)}):Play()
+end)
+CloseBtnAP.MouseLeave:Connect(function()
+    TweenService:Create(CloseBtnAP, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(25,25,30), TextColor3 = Color3.fromRGB(140,140,150)}):Play()
+end)
+CloseBtnAP.MouseButton1Click:Connect(function()
+    APFrame.Visible = false
+    updateOpenAPVisibility()
+end)
 
 local APDiv = Instance.new("Frame", APFrame)
 APDiv.Size = UDim2.new(0.9, 0, 0, 1)
@@ -471,36 +833,28 @@ local function CreateAPToggle(name, yPos, state, cb)
     b.Text = ""
     local function upd(a, inst)
         local pos = a and UDim2.new(0, 22, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
-        local bgc = a and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(80, 80, 90)
-        local mbgc = a and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(35, 35, 40)
-        local tc = a and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(170, 170, 180)
+        local bgc = a and Color3.fromRGB(255,255,255) or Color3.fromRGB(80,80,90)
+        local mbgc = a and Color3.fromRGB(255,255,255) or Color3.fromRGB(35,35,40)
+        local tc = a and Color3.fromRGB(255,255,255) or Color3.fromRGB(170,170,180)
         if inst then
-            c.Position = pos
-            c.BackgroundColor3 = bgc
-            bg.BackgroundColor3 = mbgc
-            l.TextColor3 = tc
+            c.Position=pos c.BackgroundColor3=bgc bg.BackgroundColor3=mbgc l.TextColor3=tc
         else
-            TweenService:Create(c, TweenInfo.new(0.2), {Position = pos, BackgroundColor3 = bgc}):Play()
-            TweenService:Create(bg, TweenInfo.new(0.2), {BackgroundColor3 = mbgc}):Play()
-            TweenService:Create(l, TweenInfo.new(0.2), {TextColor3 = tc}):Play()
+            TweenService:Create(c, TweenInfo.new(0.2), {Position=pos, BackgroundColor3=bgc}):Play()
+            TweenService:Create(bg, TweenInfo.new(0.2), {BackgroundColor3=mbgc}):Play()
+            TweenService:Create(l, TweenInfo.new(0.2), {TextColor3=tc}):Play()
         end
     end
     upd(state, true)
     b.MouseButton1Click:Connect(function() state = not state upd(state, false) cb(state) end)
 end
 
-local ProxToggleY = 50
-local SliderY = 88
-local ClickToggleY = 130
-
-CreateAPToggle("Proximity AP", ProxToggleY, US.ProximityAP, function(s)
-    US.ProximityAP = s
-    SaveSettings()
+CreateAPToggle("Proximity AP", 50, US.ProximityAP, function(s)
+    US.ProximityAP = s; SaveSettings()
 end)
 
 local RadiusLabel = Instance.new("TextLabel", APFrame)
 RadiusLabel.Size = UDim2.new(0.9, 0, 0, 18)
-RadiusLabel.Position = UDim2.new(0.05, 0, 0, SliderY)
+RadiusLabel.Position = UDim2.new(0.05, 0, 0, 88)
 RadiusLabel.BackgroundTransparency = 1
 RadiusLabel.Text = "Radius: " .. tostring(US.ProximityRadius)
 RadiusLabel.TextColor3 = Color3.fromRGB(200, 200, 210)
@@ -510,7 +864,7 @@ RadiusLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local SliderBg = Instance.new("Frame", APFrame)
 SliderBg.Size = UDim2.new(0.9, 0, 0, 10)
-SliderBg.Position = UDim2.new(0.05, 0, 0, SliderY + 18)
+SliderBg.Position = UDim2.new(0.05, 0, 0, 106)
 SliderBg.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 SliderBg.BorderSizePixel = 0
 Instance.new("UICorner", SliderBg).CornerRadius = UDim.new(1, 0)
@@ -540,26 +894,21 @@ local function SetRadiusFromAlpha(alpha)
 end
 
 task.defer(function()
-    local alpha = (US.ProximityRadius - MIN_RADIUS) / (MAX_RADIUS - MIN_RADIUS)
-    SetRadiusFromAlpha(alpha)
+    SetRadiusFromAlpha((US.ProximityRadius - MIN_RADIUS) / (MAX_RADIUS - MIN_RADIUS))
 end)
 
 SliderBg.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        sliderDragging = true
+        sliderDragging = true; isInteractingWithSlider = true
         local rel = (input.Position.X - SliderBg.AbsolutePosition.X) / SliderBg.AbsoluteSize.X
-        SetRadiusFromAlpha(rel)
-        SaveSettings()
+        SetRadiusFromAlpha(rel); SaveSettings()
     end
 end)
-
 SliderBg.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        sliderDragging = false
-        SaveSettings()
+        sliderDragging = false; isInteractingWithSlider = false; SaveSettings()
     end
 end)
-
 UserInputService.InputChanged:Connect(function(input)
     if sliderDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
         local rel = (input.Position.X - SliderBg.AbsolutePosition.X) / SliderBg.AbsoluteSize.X
@@ -567,45 +916,76 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
-CreateAPToggle("Click To AP", ClickToggleY, US.ClickToAP, function(s)
-    US.ClickToAP = s
-    SaveSettings()
+CreateAPToggle("Click To AP", 130, US.ClickToAP, function(s)
+    US.ClickToAP = s; SaveSettings()
 end)
 
+-- Dragging AP Panel
 local APdrag, APdStart, APsPos
 APTitle.InputBegan:Connect(function(i)
+    if isInteractingWithSlider then return end
     if i.UserInputType == Enum.UserInputType.MouseButton1 then
-        APdrag = true
-        APdStart = i.Position
-        APsPos = APFrame.Position
+        APdrag = true; APdStart = i.Position; APsPos = APFrame.Position
     end
 end)
 UserInputService.InputChanged:Connect(function(i)
-    if APdrag and i.UserInputType == Enum.UserInputType.MouseMovement then
-        APFrame.Position = UDim2.new(APsPos.X.Scale, APsPos.X.Offset + (i.Position.X - APdStart.X), APsPos.Y.Scale, APsPos.Y.Offset + (i.Position.Y - APdStart.Y))
+    if APdrag and not isInteractingWithSlider and i.UserInputType == Enum.UserInputType.MouseMovement then
+        APFrame.Position = UDim2.new(APsPos.X.Scale, APsPos.X.Offset+(i.Position.X-APdStart.X), APsPos.Y.Scale, APsPos.Y.Offset+(i.Position.Y-APdStart.Y))
     end
 end)
 UserInputService.InputEnded:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1 then
-        APdrag = false
+    if i.UserInputType == Enum.UserInputType.MouseButton1 then APdrag = false end
+end)
+
+-- ============================================
+-- INIT
+-- ============================================
+
+task.defer(function()
+    setGuiScaleFromAlpha((US.GuiScale - 20) / (100 - 20), true)
+end)
+
+task.defer(function()
+    if not US.AutoOpenOnLoad then
+        Main.Visible = false
+        OpenButtonMain.Visible = true
+        if not US.HideAP then
+            APFrame.Visible = false
+            OpenButtonAP.Visible = true
+        else
+            APFrame.Visible = false
+            OpenButtonAP.Visible = false
+        end
+    else
+        Main.Visible = true
+        OpenButtonMain.Visible = false
+        if not US.HideAP then
+            APFrame.Visible = true
+            OpenButtonAP.Visible = false
+        else
+            APFrame.Visible = false
+            OpenButtonAP.Visible = false
+        end
     end
 end)
+
+-- ============================================
+-- PROXIMITY + CLICK AP LOGIC
+-- ============================================
 
 local lastInside = {}
 task.spawn(function()
     while US.Running do
         if US.ProximityAP then
             local char = LocalPlayer.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local hrp  = char and char:FindFirstChild("HumanoidRootPart")
             if hrp then
                 for _, p in ipairs(Players:GetPlayers()) do
                     if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
                         local d = (p.Character.HumanoidRootPart.Position - hrp.Position).Magnitude
                         local inNow = d <= US.ProximityRadius
                         local wasIn = lastInside[p]
-                        if inNow and not wasIn then
-                            triggerOneCommand(p)
-                        end
+                        if inNow and not wasIn then triggerOneCommand(p) end
                         lastInside[p] = inNow
                     end
                 end
@@ -616,8 +996,7 @@ task.spawn(function()
 end)
 
 local circle
-
-local function getHRP_unified()
+local function getHRP()
     local c = LocalPlayer.Character
     return c and c:FindFirstChild("HumanoidRootPart")
 end
@@ -627,11 +1006,8 @@ local function getGroundPos(origin)
     params.FilterDescendantsInstances = {LocalPlayer.Character}
     params.FilterType = Enum.RaycastFilterType.Exclude
     local ray = Workspace:Raycast(origin + Vector3.new(0, 5, 0), Vector3.new(0, -1000, 0), params)
-    if ray then
-        return Vector3.new(origin.X, ray.Position.Y + 0.05, origin.Z)
-    else
-        return origin - Vector3.new(0, 3, 0)
-    end
+    if ray then return Vector3.new(origin.X, ray.Position.Y + 0.05, origin.Z)
+    else return origin - Vector3.new(0, 3, 0) end
 end
 
 RunService.RenderStepped:Connect(function()
@@ -639,15 +1015,12 @@ RunService.RenderStepped:Connect(function()
         if circle then circle.CFrame = CFrame.new(0, -9999, 0) end
         return
     end
-
-    local hrp = getHRP_unified()
+    local hrp = getHRP()
     if not hrp then
         if circle then circle.CFrame = CFrame.new(0, -9999, 0) end
         return
     end
-
     local pos = getGroundPos(hrp.Position)
-
     if not circle then
         local p = Instance.new("Part")
         p.Name = "ProxCircle"
@@ -662,7 +1035,6 @@ RunService.RenderStepped:Connect(function()
         p.Parent = Workspace
         circle = p
     end
-
     circle.Size = Vector3.new(0.3, US.ProximityRadius * 2, US.ProximityRadius * 2)
     circle.CFrame = CFrame.new(pos) * CFrame.Angles(0, 0, math.rad(90))
 end)
@@ -679,12 +1051,10 @@ RunService.RenderStepped:Connect(function()
         hoverTarget = nil
         return
     end
-
     local cam = Workspace.CurrentCamera
     if not cam then return end
     local ray = cam:ScreenPointToRay(Mouse.X, Mouse.Y)
     local bestP, bestDist = nil, 15
-
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
             local pos = p.Character.HumanoidRootPart.Position
@@ -692,14 +1062,10 @@ RunService.RenderStepped:Connect(function()
             local proj = v:Dot(ray.Direction)
             if proj > 0 then
                 local d = (v - ray.Direction * proj).Magnitude
-                if d < bestDist then
-                    bestDist = d
-                    bestP = p
-                end
+                if d < bestDist then bestDist = d bestP = p end
             end
         end
     end
-
     if bestP and bestP.Character then
         hoverTarget = bestP
         HL.Parent = bestP.Character
@@ -708,6 +1074,10 @@ RunService.RenderStepped:Connect(function()
         HL.Parent = nil
     end
 end)
+
+-- ============================================
+-- INPUT
+-- ============================================
 
 table.insert(US.Connections, UserInputService.InputBegan:Connect(function(i, gp)
     if gp then return end
@@ -725,153 +1095,28 @@ table.insert(US.Connections, UserInputService.InputBegan:Connect(function(i, gp)
     end
     if i.UserInputType == Enum.UserInputType.Keyboard then
         local k = i.KeyCode.Name
+        if k == "RightControl" then
+            local anyVisible = Main.Visible or APFrame.Visible
+            Main.Visible = not anyVisible
+            updateOpenMainVisibility()
+            if not US.HideAP then
+                APFrame.Visible = not anyVisible
+                updateOpenAPVisibility()
+            end
+            return
+        end
         if k == US.RagdollKey then DoRagdoll()
         elseif k == US.RejoinKey then DoRejoin()
         elseif k == US.KickKey then DoKick()
         elseif k == US.ResetKey then DoReset() end
     elseif i.UserInputType == Enum.UserInputType.MouseButton1 then
-        if US.ClickToAP and hoverTarget then
-            triggerOneCommand(hoverTarget)
-        end
+        if US.ClickToAP and hoverTarget then triggerOneCommand(hoverTarget) end
     end
 end))
 
-local PListFrame = Instance.new("Frame", Gui)
-PListFrame.Size = UDim2.new(0, 510, 0, 280)
-PListFrame.Position = UDim2.new(1, -520, 1, -260-280-8)
-PListFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 14)
-PListFrame.BorderSizePixel = 0
-local PListStroke = Instance.new("UIStroke", PListFrame)
-PListStroke.Color = Color3.fromRGB(35, 35, 40)
-PListFrame.Visible = not US.HideAP
-
-local PLTitle = Instance.new("TextLabel", PListFrame)
-PLTitle.Size = UDim2.new(1, -20, 0, 24)
-PLTitle.Position = UDim2.new(0, 10, 0, 4)
-PLTitle.BackgroundTransparency = 1
-PLTitle.Text = "Players"
-PLTitle.TextColor3 = Color3.fromRGB(210, 210, 215)
-PLTitle.Font = Enum.Font.GothamBold
-PLTitle.TextSize = 13
-PLTitle.TextXAlignment = Enum.TextXAlignment.Left
-
-local PLDiv = Instance.new("Frame", PListFrame)
-PLDiv.Size = UDim2.new(0.96, 0, 0, 1)
-PLDiv.Position = UDim2.new(0.02, 0, 0, 28)
-PLDiv.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-PLDiv.BorderSizePixel = 0
-
-local PLScroll = Instance.new("ScrollingFrame", PListFrame)
-PLScroll.Size = UDim2.new(0.96, 0, 1, -34)
-PLScroll.Position = UDim2.new(0.02, 0, 0, 30)
-PLScroll.BackgroundTransparency = 1
-PLScroll.BorderSizePixel = 0
-PLScroll.ScrollBarThickness = 3
-PLScroll.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 90)
-
-local PLLayout = Instance.new("UIListLayout", PLScroll)
-PLLayout.Padding = UDim.new(0, 3)
-PLLayout.SortOrder = Enum.SortOrder.LayoutOrder
-
-local ROW_HEIGHT = 36
-
-local function updatePlayerList()
-    for _, c in ipairs(PLScroll:GetChildren()) do
-        if c:IsA("Frame") then c:Destroy() end
-    end
-
-    local idx = 0
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer then
-            idx += 1
-
-            local row = Instance.new("Frame")
-            row.Size = UDim2.new(1, 0, 0, ROW_HEIGHT)
-            row.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
-            row.BorderSizePixel = 0
-            row.Parent = PLScroll
-
-            local avatar = Instance.new("ImageLabel")
-            avatar.Size = UDim2.new(0, 28, 0, 28)
-            avatar.Position = UDim2.new(0, 6, 0.5, -14)
-            avatar.BackgroundTransparency = 1
-            avatar.Parent = row
-            local ok, content = pcall(function()
-                return Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
-            end)
-            if ok then avatar.Image = content end
-
-            local nameContainer = Instance.new("Frame")
-            nameContainer.Size = UDim2.new(0, 200, 1, 0)
-            nameContainer.Position = UDim2.new(0, 40, 0, 0)
-            nameContainer.BackgroundTransparency = 1
-            nameContainer.Parent = row
-
-            local display = Instance.new("TextLabel")
-            display.Size = UDim2.new(1, 0, 0.6, 0)
-            display.Position = UDim2.new(0, 0, 0, 3)
-            display.BackgroundTransparency = 1
-            display.Text = p.DisplayName
-            display.Font = Enum.Font.GothamBold
-            display.TextSize = 14
-            display.TextXAlignment = Enum.TextXAlignment.Left
-            display.TextColor3 = Color3.fromRGB(230, 230, 235)
-            display.Parent = nameContainer
-
-            local full = Instance.new("TextLabel")
-            full.Size = UDim2.new(1, 0, 0.4, 0)
-            full.Position = UDim2.new(0, 0, 0.6, -2)
-            full.BackgroundTransparency = 1
-            full.Text = "@" .. p.Name
-            full.Font = Enum.Font.Gotham
-            full.TextSize = 12
-            full.TextXAlignment = Enum.TextXAlignment.Left
-            full.TextColor3 = Color3.fromRGB(150, 150, 160)
-            full.Parent = nameContainer
-
-            local function makeIconButton(index, icon, cmdName)
-                local b = Instance.new("TextButton")
-                b.Size = UDim2.new(0, 24, 0, 24)
-                local baseX = 250
-                local step = 28
-                b.Position = UDim2.new(0, baseX + index * step, 0.5, -12)
-                b.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-                b.BorderSizePixel = 0
-                b.Text = icon
-                b.Font = Enum.Font.Gotham
-                b.TextSize = 16
-                b.TextColor3 = Color3.fromRGB(255, 255, 255)
-                b.Parent = row
-                if not cmdName then
-                    b.AutoButtonColor = false
-                    b.TextColor3 = Color3.fromRGB(90, 90, 90)
-                    return
-                end
-                b.MouseButton1Click:Connect(function()
-                    exec(p.Name, cmdName)
-                end)
-            end
-
-            makeIconButton(0, "🎈", CMD_BALLOON)
-            makeIconButton(1, "🚀", CMD_ROCKET)
-            makeIconButton(2, "🤸", CMD_RAGDOLL)
-            makeIconButton(3, "🔒", CMD_JAIL)
-        end
-    end
-
-    PLScroll.CanvasSize = UDim2.new(0, 0, 0, idx * (ROW_HEIGHT + PLLayout.Padding.Offset))
-end
-
-updatePlayerList()
-Players.PlayerAdded:Connect(updatePlayerList)
-Players.PlayerRemoving:Connect(updatePlayerList)
-
-CreateActionToggle("Hide AP Functions", 250, US.HideAP, function(s)
-    US.HideAP = s
-    if APFrame then APFrame.Visible = not s end
-    if PListFrame then PListFrame.Visible = not s end
-    SaveSettings()
-end)
+-- ============================================
+-- DISABLE
+-- ============================================
 
 function US.Disable()
     US.Running = false
