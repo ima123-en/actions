@@ -30,7 +30,9 @@ getgenv().UnifiedSystem = {
     ProximityAP = false,
     ClickToAP = false,
     ProximityRadius = 25,
-    HideAPFunctions = false
+    HideAPFunctions = false,
+    AutoOpenOnLoad = true,
+    GuiScale = 80,
 }
 local US = getgenv().UnifiedSystem
 
@@ -47,7 +49,9 @@ local function SaveSettings()
             ProximityAP = US.ProximityAP,
             ClickToAP = US.ClickToAP,
             ProximityRadius = US.ProximityRadius,
-            HideAPFunctions = US.HideAPFunctions
+            HideAPFunctions = US.HideAPFunctions,
+            AutoOpenOnLoad = US.AutoOpenOnLoad,
+            GuiScale = US.GuiScale,
         }))
     end)
 end
@@ -64,6 +68,8 @@ pcall(function()
         if d.ClickToAP       ~= nil then US.ClickToAP       = d.ClickToAP end
         if d.ProximityRadius ~= nil then US.ProximityRadius = d.ProximityRadius end
         if d.HideAPFunctions ~= nil then US.HideAPFunctions = d.HideAPFunctions end
+        if d.AutoOpenOnLoad  ~= nil then US.AutoOpenOnLoad  = d.AutoOpenOnLoad end
+        if d.GuiScale        ~= nil then US.GuiScale        = d.GuiScale end
     end
 end)
 
@@ -143,19 +149,6 @@ local function triggerOneCommand(target)
     local cmd = cycleCmds[idx]
     exec(name, cmd)
     APIndex[name] = (idx % #cycleCmds) + 1
-end
-
-local function nearest()
-    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    local best, dist = nil, 999999
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-            local d = (p.Character.HumanoidRootPart.Position - hrp.Position).Magnitude
-            if d < dist then dist = d best = p end
-        end
-    end
-    return best
 end
 
 local function DoRagdoll()
@@ -238,19 +231,80 @@ Gui.Name = "UnifiedPanel"
 Gui.ResetOnSpawn = false
 Gui.Parent = PlayerGui
 
+local GlobalScale = Instance.new("UIScale")
+GlobalScale.Name = "UnifiedScale"
+GlobalScale.Parent = Gui
+do
+    local v = math.clamp(US.GuiScale, 20, 100)
+    local a = (v - 20) / (100 - 20)
+    GlobalScale.Scale = 0.3 + (1.0 - 0.3) * a
+end
+
 local Main = Instance.new("Frame", Gui)
-Main.Size = UDim2.new(0, 280, 0, 290)
-Main.Position = UDim2.new(1, -290, 1, -300)
+Main.Size = UDim2.new(0, 280, 0, 390)
+Main.Position = UDim2.new(1, -290, 1, -400)
 Main.BackgroundColor3 = Color3.fromRGB(12, 12, 14)
 Main.BorderSizePixel = 0
 Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)
 local Str = Instance.new("UIStroke", Main)
 Str.Color = Color3.fromRGB(35, 35, 40)
 
+local OpenButton = Instance.new("TextButton", Gui)
+OpenButton.Name = "OpenUnifiedPanel"
+OpenButton.Size = UDim2.new(0, 140, 0, 32)
+OpenButton.Position = UDim2.new(1, -155, 1, -50)
+OpenButton.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+OpenButton.BorderSizePixel = 0
+OpenButton.Text = "Open Actions"
+OpenButton.TextColor3 = Color3.fromRGB(170, 170, 180)
+OpenButton.Font = Enum.Font.GothamBold
+OpenButton.TextSize = 12
+OpenButton.AutoButtonColor = false
+Instance.new("UICorner", OpenButton).CornerRadius = UDim.new(0, 8)
+local openStroke = Instance.new("UIStroke", OpenButton)
+openStroke.Color = Color3.fromRGB(40, 40, 48)
+openStroke.Thickness = 1
+
+OpenButton.MouseEnter:Connect(function()
+    TweenService:Create(OpenButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(28, 28, 34)}):Play()
+end)
+OpenButton.MouseLeave:Connect(function()
+    TweenService:Create(OpenButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(18, 18, 22)}):Play()
+end)
+
+local function updateOpenButtonVisibility()
+    OpenButton.Visible = not Main.Visible
+end
+
+OpenButton.MouseButton1Click:Connect(function()
+    Main.Visible = true
+    updateOpenButtonVisibility()
+end)
+
+local obDragging, obStartPos, obDragStart
+OpenButton.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 then
+        obDragging = true
+        obDragStart = i.Position
+        obStartPos = OpenButton.Position
+    end
+end)
+UserInputService.InputChanged:Connect(function(i)
+    if obDragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = i.Position - obDragStart
+        OpenButton.Position = UDim2.new(obStartPos.X.Scale, obStartPos.X.Offset + delta.X, obStartPos.Y.Scale, obStartPos.Y.Offset + delta.Y)
+    end
+end)
+UserInputService.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 then
+        obDragging = false
+    end
+end)
+
 local ActionPanel = Main 
 
 local TitleA = Instance.new("TextLabel", ActionPanel)
-TitleA.Size = UDim2.new(1, -20, 0, 36)
+TitleA.Size = UDim2.new(1, -40, 0, 36)
 TitleA.Position = UDim2.new(0, 14, 0, 4)
 TitleA.BackgroundTransparency = 1
 TitleA.Text = "Actions"
@@ -259,6 +313,29 @@ TitleA.Font = Enum.Font.GothamBold
 TitleA.TextSize = 15
 TitleA.TextXAlignment = Enum.TextXAlignment.Left
 TitleA.Active = true
+
+local CloseMain = Instance.new("TextButton", ActionPanel)
+CloseMain.Size = UDim2.new(0, 24, 0, 24)
+CloseMain.Position = UDim2.new(1, -30, 0, 8)
+CloseMain.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+CloseMain.BorderSizePixel = 0
+CloseMain.Text = "×"
+CloseMain.TextColor3 = Color3.fromRGB(140, 140, 150)
+CloseMain.Font = Enum.Font.GothamBold
+CloseMain.TextSize = 16
+CloseMain.AutoButtonColor = false
+Instance.new("UICorner", CloseMain).CornerRadius = UDim.new(0, 6)
+
+CloseMain.MouseEnter:Connect(function()
+    TweenService:Create(CloseMain, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(60, 30, 30), TextColor3 = Color3.fromRGB(255, 100, 100)}):Play()
+end)
+CloseMain.MouseLeave:Connect(function()
+    TweenService:Create(CloseMain, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(25, 25, 30), TextColor3 = Color3.fromRGB(140, 140, 150)}):Play()
+end)
+CloseMain.MouseButton1Click:Connect(function()
+    Main.Visible = false
+    updateOpenButtonVisibility()
+end)
 
 local DivA = Instance.new("Frame", ActionPanel)
 DivA.Size = UDim2.new(0.9, 0, 0, 1)
@@ -364,22 +441,23 @@ for k, b in pairs(keyButtons) do
     end)
 end
 
-local dragMain, dStartMain, sPosMain
+local dragPanel, dragStart, startPos
 TitleA.InputBegan:Connect(function(i)
     if i.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragMain = true
-        dStartMain = i.Position
-        sPosMain = Main.Position
+        dragPanel = true
+        dragStart = i.Position
+        startPos = Main.Position
     end
 end)
 UserInputService.InputChanged:Connect(function(i)
-    if dragMain and i.UserInputType == Enum.UserInputType.MouseMovement then
-        Main.Position = UDim2.new(sPosMain.X.Scale, sPosMain.X.Offset + (i.Position.X - dStartMain.X), sPosMain.Y.Scale, sPosMain.Y.Offset + (i.Position.Y - dStartMain.Y))
+    if dragPanel and i.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = i.Position - dragStart
+        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
 end)
 UserInputService.InputEnded:Connect(function(i)
     if i.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragMain = false
+        dragPanel = false
     end
 end)
 
@@ -682,6 +760,210 @@ RunService.RenderStepped:Connect(function()
         hoverTarget = nil
         HL.Parent = nil
     end
+end)
+
+local AutoOpenFrame = Instance.new("Frame", ActionPanel)
+AutoOpenFrame.Size = UDim2.new(0.9, 0, 0, 30)
+AutoOpenFrame.Position = UDim2.new(0.05, 0, 0, 292+24)
+AutoOpenFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+AutoOpenFrame.BorderSizePixel = 0
+Instance.new("UICorner", AutoOpenFrame).CornerRadius = UDim.new(0, 6)
+
+local AutoOpenLabel = Instance.new("TextLabel", AutoOpenFrame)
+AutoOpenLabel.Size = UDim2.new(0.65, 0, 1, 0)
+AutoOpenLabel.Position = UDim2.new(0, 10, 0, 0)
+AutoOpenLabel.BackgroundTransparency = 1
+AutoOpenLabel.Text = "Auto Open on Load"
+AutoOpenLabel.Font = Enum.Font.Gotham
+AutoOpenLabel.TextSize = 11
+AutoOpenLabel.TextXAlignment = Enum.TextXAlignment.Left
+AutoOpenLabel.TextColor3 = Color3.fromRGB(160, 160, 175)
+
+local AutoOpenToggleBg = Instance.new("Frame", AutoOpenFrame)
+AutoOpenToggleBg.Size = UDim2.new(0, 36, 0, 18)
+AutoOpenToggleBg.Position = UDim2.new(1, -46, 0.5, -9)
+AutoOpenToggleBg.BackgroundColor3 = Color3.fromRGB(32, 32, 38)
+AutoOpenToggleBg.BorderSizePixel = 0
+Instance.new("UICorner", AutoOpenToggleBg).CornerRadius = UDim.new(1, 0)
+
+local AutoOpenCircle = Instance.new("Frame", AutoOpenToggleBg)
+AutoOpenCircle.Size = UDim2.new(0, 14, 0, 14)
+AutoOpenCircle.Position = UDim2.new(0, 2, 0.5, -7)
+AutoOpenCircle.BackgroundColor3 = Color3.fromRGB(90, 90, 100)
+AutoOpenCircle.BorderSizePixel = 0
+Instance.new("UICorner", AutoOpenCircle).CornerRadius = UDim.new(1, 0)
+
+local AutoOpenBtn = Instance.new("TextButton", AutoOpenToggleBg)
+AutoOpenBtn.Size = UDim2.new(1, 0, 1, 0)
+AutoOpenBtn.BackgroundTransparency = 1
+AutoOpenBtn.Text = ""
+
+local function updateAutoOpenVisual(instant)
+    local on = US.AutoOpenOnLoad
+    local cPos = on and UDim2.new(0, 20, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+    local cCol = on and Color3.fromRGB(200, 200, 210) or Color3.fromRGB(90, 90, 100)
+    local bgCol = on and Color3.fromRGB(55, 55, 65) or Color3.fromRGB(32, 32, 38)
+    local tCol = on and Color3.fromRGB(220, 220, 230) or Color3.fromRGB(160, 160, 175)
+    if instant then
+        AutoOpenCircle.Position = cPos
+        AutoOpenCircle.BackgroundColor3 = cCol
+        AutoOpenToggleBg.BackgroundColor3 = bgCol
+        AutoOpenLabel.TextColor3 = tCol
+    else
+        TweenService:Create(AutoOpenCircle, TweenInfo.new(0.2), {Position=cPos, BackgroundColor3=cCol}):Play()
+        TweenService:Create(AutoOpenToggleBg, TweenInfo.new(0.2), {BackgroundColor3=bgCol}):Play()
+        TweenService:Create(AutoOpenLabel, TweenInfo.new(0.2), {TextColor3=tCol}):Play()
+    end
+end
+updateAutoOpenVisual(true)
+AutoOpenBtn.MouseButton1Click:Connect(function()
+    US.AutoOpenOnLoad = not US.AutoOpenOnLoad
+    updateAutoOpenVisual(false)
+    SaveSettings()
+end)
+
+local GuiScaleFrame = Instance.new("Frame", ActionPanel)
+GuiScaleFrame.Size = UDim2.new(0.9, 0, 0, 36)
+GuiScaleFrame.Position = UDim2.new(0.05, 0, 0, 292+24+34)
+GuiScaleFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+GuiScaleFrame.BorderSizePixel = 0
+Instance.new("UICorner", GuiScaleFrame).CornerRadius = UDim.new(0, 6)
+
+local GuiScaleLabel = Instance.new("TextLabel", GuiScaleFrame)
+GuiScaleLabel.Size = UDim2.new(0, 65, 1, 0)
+GuiScaleLabel.Position = UDim2.new(0, 10, 0, 0)
+GuiScaleLabel.BackgroundTransparency = 1
+GuiScaleLabel.Text = "GUI Scale"
+GuiScaleLabel.Font = Enum.Font.Gotham
+GuiScaleLabel.TextSize = 11
+GuiScaleLabel.TextXAlignment = Enum.TextXAlignment.Left
+GuiScaleLabel.TextColor3 = Color3.fromRGB(160, 160, 175)
+
+local GuiScaleBar = Instance.new("Frame", GuiScaleFrame)
+GuiScaleBar.Size = UDim2.new(0, 100, 0, 5)
+GuiScaleBar.Position = UDim2.new(0, 80, 0.5, -2)
+GuiScaleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+GuiScaleBar.BorderSizePixel = 0
+Instance.new("UICorner", GuiScaleBar).CornerRadius = UDim.new(1, 0)
+
+local GuiScaleFill = Instance.new("Frame", GuiScaleBar)
+GuiScaleFill.Size = UDim2.new(0, 0, 1, 0)
+GuiScaleFill.BackgroundColor3 = Color3.fromRGB(200, 200, 210)
+GuiScaleFill.BorderSizePixel = 0
+Instance.new("UICorner", GuiScaleFill).CornerRadius = UDim.new(1, 0)
+
+local GuiScaleKnob = Instance.new("Frame", GuiScaleBar)
+GuiScaleKnob.Size = UDim2.new(0, 10, 0, 10)
+GuiScaleKnob.Position = UDim2.new(0, -5, 0.5, -5)
+GuiScaleKnob.BackgroundColor3 = Color3.fromRGB(230, 230, 235)
+GuiScaleKnob.BorderSizePixel = 0
+Instance.new("UICorner", GuiScaleKnob).CornerRadius = UDim.new(1, 0)
+
+local GuiScaleValueBG = Instance.new("Frame", GuiScaleFrame)
+GuiScaleValueBG.Size = UDim2.new(0, 45, 0, 18)
+GuiScaleValueBG.Position = UDim2.new(1, -52, 0.5, -9)
+GuiScaleValueBG.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+GuiScaleValueBG.BorderSizePixel = 0
+Instance.new("UICorner", GuiScaleValueBG).CornerRadius = UDim.new(0, 4)
+
+local GuiScaleInput = Instance.new("TextBox", GuiScaleValueBG)
+GuiScaleInput.Size = UDim2.new(1, 0, 1, 0)
+GuiScaleInput.BackgroundTransparency = 1
+GuiScaleInput.Text = tostring(US.GuiScale) .. "%"
+GuiScaleInput.Font = Enum.Font.GothamBold
+GuiScaleInput.TextSize = 10
+GuiScaleInput.TextColor3 = Color3.fromRGB(200, 200, 210)
+GuiScaleInput.TextXAlignment = Enum.TextXAlignment.Center
+GuiScaleInput.ClearTextOnFocus = false
+GuiScaleInput.PlaceholderColor3 = Color3.fromRGB(100, 100, 110)
+
+local guiScaleDragging2 = false
+
+local function setGuiScaleFromAlpha(a, instant)
+    a = math.clamp(a, 0, 1)
+    local value = math.floor(20 + (100 - 20) * a + 0.5)
+    US.GuiScale = value
+    if not GuiScaleInput:IsFocused() then
+        GuiScaleInput.Text = tostring(value) .. "%"
+    end
+    local sizeX = GuiScaleBar.AbsoluteSize.X
+    if sizeX <= 0 then return end
+    local x = a * sizeX
+    if instant then
+        GuiScaleFill.Size = UDim2.new(0, x, 1, 0)
+        GuiScaleKnob.Position = UDim2.new(0, x - 5, 0.5, -5)
+    else
+        TweenService:Create(GuiScaleFill, TweenInfo.new(0.1), {Size = UDim2.new(0, x, 1, 0)}):Play()
+        TweenService:Create(GuiScaleKnob, TweenInfo.new(0.1), {Position = UDim2.new(0, x - 5, 0.5, -5)}):Play()
+    end
+    local scale = 0.3 + (1.0 - 0.3) * ((value - 20) / (100 - 20))
+    if instant then
+        GlobalScale.Scale = scale
+    else
+        TweenService:Create(GlobalScale, TweenInfo.new(0.15), {Scale = scale}):Play()
+    end
+    SaveSettings()
+end
+
+local function updateGuiScaleFromX(px)
+    local absPos = GuiScaleBar.AbsolutePosition.X
+    local sizeX = GuiScaleBar.AbsoluteSize.X
+    if sizeX <= 0 then return end
+    local alpha = (px - absPos) / sizeX
+    setGuiScaleFromAlpha(alpha, false)
+end
+
+GuiScaleInput.FocusLost:Connect(function()
+    local txt = GuiScaleInput.Text:gsub("%%", "")
+    local num = tonumber(txt)
+    if num then
+        num = math.clamp(math.floor(num + 0.5), 20, 100)
+        US.GuiScale = num
+        local alpha = (num - 20) / (100 - 20)
+        setGuiScaleFromAlpha(alpha, false)
+    else
+        GuiScaleInput.Text = tostring(US.GuiScale) .. "%"
+    end
+end)
+
+GuiScaleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        guiScaleDragging2 = true
+        updateGuiScaleFromX(input.Position.X)
+    end
+end)
+
+GuiScaleKnob.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        guiScaleDragging2 = true
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if guiScaleDragging2 and input.UserInputType == Enum.UserInputType.MouseMovement then
+        updateGuiScaleFromX(input.Position.X)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if guiScaleDragging2 then
+            guiScaleDragging2 = false
+        end
+    end
+end)
+
+do
+    local v = math.clamp(US.GuiScale, 20, 100)
+    local a = (v - 20) / (100 - 20)
+    task.defer(function()
+        setGuiScaleFromAlpha(a, true)
+    end)
+end
+
+task.defer(function()
+    Main.Visible = US.AutoOpenOnLoad and true or false
+    updateOpenButtonVisibility()
 end)
 
 table.insert(US.Connections, UserInputService.InputBegan:Connect(function(i, gp)
