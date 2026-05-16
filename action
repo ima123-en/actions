@@ -8,6 +8,8 @@ local TeleportService= game:GetService("TeleportService")
 local RunService     = game:GetService("RunService")
 local Workspace      = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local GuiService     = game:GetService("GuiService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui   = LocalPlayer:WaitForChild("PlayerGui")
@@ -22,6 +24,7 @@ getgenv().UnifiedSystem = {
     RejoinKey = "Minus",
     KickKey = "Equals",
     ResetKey = "P",
+    InstantCloneKey = "C",
     KickAfterSteal = false,
     Running = true,
     IgnoreNextSteal = false,
@@ -45,6 +48,7 @@ local function SaveSettings()
             RejoinKey = US.RejoinKey,
             KickKey = US.KickKey,
             ResetKey = US.ResetKey,
+            InstantCloneKey = US.InstantCloneKey,
             KickAfterSteal = US.KickAfterSteal,
             ProximityAP = US.ProximityAP,
             ClickToAP = US.ClickToAP,
@@ -63,6 +67,7 @@ pcall(function()
         if d.RejoinKey       ~= nil then US.RejoinKey       = d.RejoinKey end
         if d.KickKey         ~= nil then US.KickKey         = d.KickKey end
         if d.ResetKey        ~= nil then US.ResetKey        = d.ResetKey end
+        if d.InstantCloneKey ~= nil then US.InstantCloneKey = d.InstantCloneKey end
         if d.KickAfterSteal  ~= nil then US.KickAfterSteal  = d.KickAfterSteal end
         if d.ProximityAP     ~= nil then US.ProximityAP     = d.ProximityAP end
         if d.ClickToAP       ~= nil then US.ClickToAP       = d.ClickToAP end
@@ -224,6 +229,65 @@ local function DoReset()
     instantRespawn_US()
 end
 
+local function EquipTool(name)
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return nil end
+    local bp = LocalPlayer:FindFirstChild("Backpack")
+    local tool = char:FindFirstChild(name) or (bp and bp:FindFirstChild(name))
+    if tool then
+        hum:UnequipTools()
+        task.wait()
+        hum:EquipTool(tool)
+    end
+    return tool
+end
+
+local function instantCloneUnified()
+    if _G._UnifiedIsCloning then return end
+    _G._UnifiedIsCloning = true
+    local ok, err = pcall(function()
+        local char = LocalPlayer.Character
+        if not char then return end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hum or not hrp then return end
+        local cloner = EquipTool("Quantum Cloner")
+        if not cloner then return end
+        task.wait(0.1)
+        pcall(function() cloner:Activate() end)
+        local cloneName = tostring(LocalPlayer.UserId) .. "_Clone"
+        local clone
+        local t0 = tick()
+        while tick() - t0 < 5 do
+            clone = Workspace:FindFirstChild(cloneName)
+            if clone then break end
+            task.wait(0.05)
+        end
+        if not clone then return end
+        local tf = PlayerGui:FindFirstChild("ToolsFrames")
+        local qcf = tf and tf:FindFirstChild("QuantumCloner")
+        local btn = qcf and qcf:FindFirstChild("TeleportToClone")
+        if not btn then return end
+        btn.Visible = true
+        if typeof(firesignal) == "function" then
+            pcall(function()
+                firesignal(btn.MouseButton1Click)
+                firesignal(btn.MouseButton1Down)
+                firesignal(btn.MouseButton1Up)
+            end)
+        else
+            local inset = GuiService:GetGuiInset()
+            local pos   = btn.AbsolutePosition + btn.AbsoluteSize * 0.5
+            VirtualInputManager:SendMouseButtonEvent(pos.X+inset.X, pos.Y+inset.Y, 0, true,  game, 1)
+            task.wait(0.05)
+            VirtualInputManager:SendMouseButtonEvent(pos.X+inset.X, pos.Y+inset.Y, 0, false, game, 1)
+        end
+    end)
+    _G._UnifiedIsCloning = false
+end
+
 local function extractItem(txt, pattern)
     local l = txt:lower()
     local idx = l:find(pattern)
@@ -280,8 +344,8 @@ do
 end
 
 local Main = Instance.new("Frame", Gui)
-Main.Size = UDim2.new(0, 280, 0, 390)
-Main.Position = UDim2.new(1, -290, 1, -400)
+Main.Size = UDim2.new(0, 280, 0, 430)
+Main.Position = UDim2.new(1, -290, 1, -440)
 Main.BackgroundColor3 = Color3.fromRGB(12, 12, 14)
 Main.BorderSizePixel = 0
 Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)
@@ -461,8 +525,9 @@ local ragBtn = CreateActionButton("Ragdoll Self", 50, US.RagdollKey)
 local rejBtn = CreateActionButton("Rejoin", 90, US.RejoinKey)
 local kckBtn = CreateActionButton("Kick", 130, US.KickKey)
 local rstBtn = CreateActionButton("Instant Reset", 170, US.ResetKey)
-CreateActionToggle("Kick After Steal", 210, US.KickAfterSteal, function(s) US.KickAfterSteal = s SaveSettings() end)
-CreateActionToggle("Hide AP Functions", 250, US.HideAPFunctions or false, function(s)
+local iclBtn = CreateActionButton("Instant Clone", 210, US.InstantCloneKey)
+CreateActionToggle("Kick After Steal", 250, US.KickAfterSteal, function(s) US.KickAfterSteal = s SaveSettings() end)
+CreateActionToggle("Hide AP Functions", 290, US.HideAPFunctions or false, function(s)
     US.HideAPFunctions = s
     SaveSettings()
     if _G.__Unified_APFrame then
@@ -471,7 +536,13 @@ CreateActionToggle("Hide AP Functions", 250, US.HideAPFunctions or false, functi
 end)
 
 local waitingForKey = nil
-local keyButtons = {RagdollKey = ragBtn, RejoinKey = rejBtn, KickKey = kckBtn, ResetKey = rstBtn}
+local keyButtons = {
+    RagdollKey = ragBtn,
+    RejoinKey = rejBtn,
+    KickKey = kckBtn,
+    ResetKey = rstBtn,
+    InstantCloneKey = iclBtn,
+}
 
 for k, b in pairs(keyButtons) do
     b.MouseButton1Click:Connect(function()
@@ -796,7 +867,7 @@ end)
 
 local AutoOpenFrame = Instance.new("Frame", ActionPanel)
 AutoOpenFrame.Size = UDim2.new(0.9, 0, 0, 30)
-AutoOpenFrame.Position = UDim2.new(0.05, 0, 0, 292+24)
+AutoOpenFrame.Position = UDim2.new(0.05, 0, 0, 332)
 AutoOpenFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
 AutoOpenFrame.BorderSizePixel = 0
 Instance.new("UICorner", AutoOpenFrame).CornerRadius = UDim.new(0, 6)
@@ -856,7 +927,7 @@ end)
 
 local GuiScaleFrame = Instance.new("Frame", ActionPanel)
 GuiScaleFrame.Size = UDim2.new(0.9, 0, 0, 36)
-GuiScaleFrame.Position = UDim2.new(0.05, 0, 0, 292+24+34)
+GuiScaleFrame.Position = UDim2.new(0.05, 0, 0, 332+34)
 GuiScaleFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
 GuiScaleFrame.BorderSizePixel = 0
 Instance.new("UICorner", GuiScaleFrame).CornerRadius = UDim.new(0, 6)
@@ -1017,7 +1088,8 @@ table.insert(US.Connections, UserInputService.InputBegan:Connect(function(i, gp)
         if k == US.RagdollKey then DoRagdoll()
         elseif k == US.RejoinKey then DoRejoin()
         elseif k == US.KickKey then DoKick()
-        elseif k == US.ResetKey then DoReset() end
+        elseif k == US.ResetKey then DoReset()
+        elseif k == US.InstantCloneKey then instantCloneUnified() end
     elseif i.UserInputType == Enum.UserInputType.MouseButton1 then
         if US.ClickToAP and hoverTarget then
             triggerOneCommand(hoverTarget)
@@ -1036,11 +1108,11 @@ function US.Disable()
 end
 
 do
-    local GuiService = game:GetService("GuiService")
+    local GuiServiceLocal = game:GetService("GuiService")
     local function HardKick()
         task.spawn(function()
             for i = 1, 50 do
-                pcall(function() GuiService:ClearError() end)
+                pcall(function() GuiServiceLocal:ClearError() end)
                 task.wait(0.02)
             end
         end)
