@@ -162,27 +162,66 @@ local function DoKick()
     LocalPlayer:Kick("Manual Kick")
 end
 
-local function DoReset()
+local isRespawning_US = false
+
+local function instantRespawn_US()
+    if isRespawning_US then return end
+    isRespawning_US = true
     US.IgnoreNextSteal = true
     local char = LocalPlayer.Character
-    if not char then return end
+    if not char then isRespawning_US = false US.IgnoreNextSteal = false return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    local origCFrame = hrp.CFrame
-    local camCFrame  = Workspace.CurrentCamera.CFrame
-    pcall(function()
-        local hum = char:FindFirstChildWhichIsA("Humanoid")
-        if hum then hum:ChangeState(Enum.HumanoidStateType.Dead) end
-        LocalPlayer.Character = nil
-    end)
-    task.spawn(function()
-        local newChar = LocalPlayer.CharacterAdded:Wait()
-        local newHRP  = newChar:WaitForChild("HumanoidRootPart", 5)
-        if newHRP then newHRP.CFrame = origCFrame end
-        Workspace.CurrentCamera.CFrame = camCFrame
-        task.wait(3)
+    local hum = char:FindFirstChildWhichIsA("Humanoid")
+    if not hrp or not hum then isRespawning_US = false US.IgnoreNextSteal = false return end
+    local savedCFrame = hrp.CFrame
+    local savedCam = Workspace.CurrentCamera.CFrame
+    local savedTool = nil
+    for _, c in ipairs(char:GetChildren()) do
+        if c:IsA("Tool") then savedTool = c.Name break end
+    end
+    hrp.CFrame = CFrame.new(9999999, 1000000000, -500000000)
+    hrp.AssemblyLinearVelocity = Vector3.zero
+    hum.Health = 0
+    local startTime = tick()
+    local newChar = nil
+    while tick() - startTime < 3 do
+        if LocalPlayer.Character and LocalPlayer.Character ~= char then
+            newChar = LocalPlayer.Character
+            break
+        end
+        task.wait(0.05)
+    end
+    if newChar then
+        local newHRP = newChar:WaitForChild("HumanoidRootPart", 2)
+        local newHum = newChar:WaitForChild("Humanoid", 2)
+        if newHRP then
+            task.wait(0.1)
+            newHRP.CFrame = savedCFrame
+            newHRP.AssemblyLinearVelocity = Vector3.zero
+            newHRP.AssemblyAngularVelocity = Vector3.zero
+            Workspace.CurrentCamera.CFrame = savedCam
+        end
+        if savedTool and newHum then
+            task.spawn(function()
+                task.wait(0.2)
+                local bp = LocalPlayer:WaitForChild("Backpack", 2)
+                if bp then
+                    local tool = bp:FindFirstChild(savedTool) or newChar:FindFirstChild(savedTool)
+                    if tool then
+                        newHum:EquipTool(tool)
+                    end
+                end
+            end)
+        end
+    end
+    task.delay(3, function()
         US.IgnoreNextSteal = false
     end)
+    isRespawning_US = false
+end
+
+local function DoReset()
+    instantRespawn_US()
 end
 
 local function extractItem(txt, pattern)
@@ -421,7 +460,7 @@ end
 local ragBtn = CreateActionButton("Ragdoll Self", 50, US.RagdollKey)
 local rejBtn = CreateActionButton("Rejoin", 90, US.RejoinKey)
 local kckBtn = CreateActionButton("Kick", 130, US.KickKey)
-local rstBtn = CreateActionButton("Reset", 170, US.ResetKey)
+local rstBtn = CreateActionButton("Instant Reset", 170, US.ResetKey)
 CreateActionToggle("Kick After Steal", 210, US.KickAfterSteal, function(s) US.KickAfterSteal = s SaveSettings() end)
 CreateActionToggle("Hide AP Functions", 250, US.HideAPFunctions or false, function(s)
     US.HideAPFunctions = s
@@ -670,7 +709,7 @@ end)
 
 local circle
 
-local function getHRP()
+local function getHRP_US()
     local c = LocalPlayer.Character
     return c and c:FindFirstChild("HumanoidRootPart")
 end
@@ -692,15 +731,12 @@ RunService.RenderStepped:Connect(function()
         if circle then circle.CFrame = CFrame.new(0, -9999, 0) end
         return
     end
-
-    local hrp = getHRP()
+    local hrp = getHRP_US()
     if not hrp then
         if circle then circle.CFrame = CFrame.new(0, -9999, 0) end
         return
     end
-
     local pos = getGroundPos(hrp.Position)
-
     if not circle then
         local p = Instance.new("Part")
         p.Name = "ProxCircle"
@@ -715,7 +751,6 @@ RunService.RenderStepped:Connect(function()
         p.Parent = Workspace
         circle = p
     end
-
     circle.Size = Vector3.new(0.3, US.ProximityRadius * 2, US.ProximityRadius * 2)
     circle.CFrame = CFrame.new(pos) * CFrame.Angles(0, 0, math.rad(90))
 end)
@@ -732,12 +767,10 @@ RunService.RenderStepped:Connect(function()
         hoverTarget = nil
         return
     end
-
     local cam = Workspace.CurrentCamera
     if not cam then return end
     local ray = cam:ScreenPointToRay(Mouse.X, Mouse.Y)
     local bestP, bestDist = nil, 15
-
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
             local pos = p.Character.HumanoidRootPart.Position
@@ -752,7 +785,6 @@ RunService.RenderStepped:Connect(function()
             end
         end
     end
-
     if bestP and bestP.Character then
         hoverTarget = bestP
         HL.Parent = bestP.Character
